@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur de Tableau de Facturation - LCDI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+            padding: 50px;
+            max-width: 700px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.2em;
+            line-height: 1.6;
+        }
+
+        .form-section {
+            margin-bottom: 35px;
+        }
+
+        .form-section h3 {
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: block;
+            width: 100%;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 18px;
+            border: 2px dashed #ddd;
+            border-radius: 12px;
+            background: #f9f9f9;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .file-input:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .file-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .file-selected {
+            border-color: #28a745 !important;
+            background: #f8fff9 !important;
+            color: #28a745;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .submit-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .alert {
+            padding: 18px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        .alert-error {
+            background: #ffeaea;
+            color: #d8000c;
+            border: 1px solid #ffcdd2;
+        }
+
+        .alert-success {
+            background: #eafff0;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            color: #1565c0;
+        }
+
+        .info-box h4 {
+            margin-bottom: 10px;
+            color: #0d47a1;
+        }
+
+        .info-box ul {
+            margin: 10px 0 0 20px;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .file-requirements {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 30px;
+                margin: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .header p {
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 LCDI Facturation</h1>
+            <p>Générateur automatique de tableau de facturation consolidé</p>
+        </div>
+
+        <!-- Messages d'alerte -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}        <!-- Informations sur les fichiers requis -->
+        <div class="info-box">
+            <h4>📋 Fichiers requis :</h4>
+            <ul>
+                <li><strong>Fichier des commandes</strong> - Format CSV avec séparateur virgule (,)
+                    <br><small>Colonnes requises : Name/Id, Fulfilled at, Billing name/Billing Name, Financial Status, Tax 1 Value/Taxes, Outstanding Balance, Payment Method</small>
+                </li>
+                <li><strong>Fichier des transactions</strong> - Format CSV avec séparateur virgule (,)
+                    <br><small>Colonnes requises : Order/Name/Id, Presentment Amount/Total, Fee, Net</small>
+                </li>
+                <li><strong>Fichier Journal</strong> - Format CSV avec séparateur point-virgule (;)
+                    <br><small>Colonnes requises : Piece/Reference/Id, Référence LMB</small>
+                </li>
+            </ul>            <p><em>Taille maximale par fichier : 16 MB</em></p>
+            <p><em>💡 L'application détecte automatiquement les variantes de noms de colonnes</em></p>
+            <p><em>🔄 Les commandes avec plusieurs lignes (produits multiples) sont automatiquement consolidées</em></p>
+        </div><!-- Formulaire principal -->
+        <form method="POST" action="{{ url_for('process_files') }}" enctype="multipart/form-data" id="uploadForm">
+            
+            <div class="form-section">
+                <h3>📄 Sélection des fichiers</h3>
+                
+                <div class="form-group">
+                    <label for="orders_file">
+                        1. Fichier des commandes (orders_export.csv)
+                    </label>
+                    <input type="file" 
+                           class="file-input" 
+                           id="orders_file" 
+                           name="orders_file" 
+                           accept=".csv" 
+                           required>
+                    <div class="file-requirements">
+                        Colonnes requises : Name, Fulfilled at, Billing name, Financial Status, Tax 1 Value, Outstanding Balance, Payment Method
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="transactions_file">
+                        2. Fichier des transactions (payment_transactions_export.csv)
+                    </label>
+                    <input type="file" 
+                           class="file-input" 
+                           id="transactions_file" 
+                           name="transactions_file" 
+                           accept=".csv" 
+                           required>
+                    <div class="file-requirements">
+                        Colonnes requises : Order, Presentment Amount, Fee, Net
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="journal_file">
+                        3. Fichier Journal (20250604-Journal.csv)
+                    </label>
+                    <input type="file" 
+                           class="file-input" 
+                           id="journal_file" 
+                           name="journal_file" 
+                           accept=".csv" 
+                           required>
+                    <div class="file-requirements">
+                        Colonnes requises : Piece, Référence LMB (séparateur point-virgule)
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                🚀 Générer le tableau consolidé
+            </button>
+        </form>
+
+        <!-- Animation de chargement -->
+        <div class="loading" id="loadingDiv">
+            <div class="spinner"></div>
+            <p>Traitement en cours... Veuillez patienter.</p>
+            <p><small>Chargement, nettoyage et fusion des données...</small></p>
+        </div>
+    </div>
+
+    <script>
+        // Gestion des fichiers et interface
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('uploadForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const loadingDiv = document.getElementById('loadingDiv');
+            const fileInputs = document.querySelectorAll('.file-input');
+
+            // Gestion de l'affichage des fichiers sélectionnés
+            fileInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    if (this.files.length > 0) {
+                        this.classList.add('file-selected');
+                        this.style.color = '#28a745';
+                        
+                        // Afficher le nom du fichier
+                        const fileName = this.files[0].name;
+                        const maxLength = 30;
+                        const displayName = fileName.length > maxLength ? 
+                            fileName.substring(0, maxLength) + '...' : fileName;
+                        
+                        // Créer ou mettre à jour l'affichage du nom de fichier
+                        let nameDisplay = this.parentNode.querySelector('.file-name-display');
+                        if (!nameDisplay) {
+                            nameDisplay = document.createElement('div');
+                            nameDisplay.className = 'file-name-display';
+                            nameDisplay.style.cssText = `
+                                margin-top: 8px;
+                                font-size: 14px;
+                                color: #28a745;
+                                font-weight: 500;
+                            `;
+                            this.parentNode.appendChild(nameDisplay);
+                        }
+                        nameDisplay.textContent = `✓ ${displayName}`;
+                    } else {
+                        this.classList.remove('file-selected');
+                        this.style.color = '#666';
+                        
+                        const nameDisplay = this.parentNode.querySelector('.file-name-display');
+                        if (nameDisplay) {
+                            nameDisplay.remove();
+                        }
+                    }
+                    
+                    // Vérifier si tous les fichiers sont sélectionnés
+                    checkAllFilesSelected();
+                });
+            });
+
+            function checkAllFilesSelected() {
+                const allSelected = Array.from(fileInputs).every(input => input.files.length > 0);
+                if (allSelected) {
+                    submitBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                    submitBtn.innerHTML = '✅ Tout est prêt - Générer le tableau';
+                } else {
+                    submitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                    submitBtn.innerHTML = '🚀 Générer le tableau consolidé';
+                }
+            }
+
+            // Gestion de la soumission du formulaire
+            form.addEventListener('submit', function(e) {
+                // Vérification finale
+                const allFilesSelected = Array.from(fileInputs).every(input => input.files.length > 0);
+                
+                if (!allFilesSelected) {
+                    e.preventDefault();
+                    alert('Veuillez sélectionner tous les fichiers requis.');
+                    return;
+                }
+
+                // Afficher l'animation de chargement
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '⏳ Traitement en cours...';
+                loadingDiv.classList.add('show');
+                
+                // Faire défiler vers l'animation de chargement
+                setTimeout(() => {
+                    loadingDiv.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            });
+
+            // Gestion du glisser-déposer
+            fileInputs.forEach(input => {
+                const wrapper = input.parentNode;
+                
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    wrapper.addEventListener(eventName, preventDefaults, false);
+                });
+
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    wrapper.addEventListener(eventName, highlight, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    wrapper.addEventListener(eventName, unhighlight, false);
+                });
+
+                function highlight(e) {
+                    wrapper.classList.add('drag-over');
+                    input.style.borderColor = '#667eea';
+                    input.style.background = '#f0f4ff';
+                }
+
+                function unhighlight(e) {
+                    wrapper.classList.remove('drag-over');
+                    if (!input.classList.contains('file-selected')) {
+                        input.style.borderColor = '#ddd';
+                        input.style.background = '#f9f9f9';
+                    }
+                }
+
+                wrapper.addEventListener('drop', handleDrop, false);
+
+                function handleDrop(e) {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    
+                    if (files.length > 0) {
+                        input.files = files;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+﻿Centre de profit;Réf.WEB;Réf. LMB;Date Facture;Etat;Client;HT;TVA;TTC;reste;Shopify;Frais de commission;Virement bancaire;ALMA;Younited;PayPal
+;#1001;LMB-2024-001;15/01/2024;paid;Dupont Jean;100,0;20,0;120,0;0,0;116,4;3,6;0,0;0,0;0,0;120,0
+;#1002;;16/01/2024;pending;Martin Marie;77,5;15,5;93,0;77,5;90,21;2,79;93,0;0,0;0,0;0,0
+;#1003;LMB-2024-003;17/01/2024;paid;Durand Paul;160,0;32,0;192,0;0,0;186,24;5,76;0,0;192,0;0,0;0,0
+;#1004;LMB-2024-004;18/01/2024;paid;Bernard Sophie;43,75;8,75;52,5;0,0;50,92;1,58;0,0;0,0;52,5;0,0
+;#1005;;19/01/2024;refunded;Leroy Pierre;65,4;12,3;77,7;65,7;75,37;2,33;0,0;0,0;0,0;77,7

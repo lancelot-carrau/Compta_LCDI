@@ -1,0 +1,45 @@
+﻿Centre de profit;Réf.WEB;Réf. LMB;Date Facture;Etat;Client;HT;TVA;TTC;reste;Shopify;Frais de commission;Virement bancaire;ALMA;Younited;PayPal
+lcdi.fr;#1001;;02/06/2025;paid;Kenny Nguyen-Jacquet;1,0;0,0;1,0;0,0;0,74;0,26;0;0;0;0
+lcdi.fr;#1002;FAC-L-04279;15/05/2025;paid;Alexandre DE PIERPONT;79,08;15,81;94,89;0,0;93,41;1,48;0;0;0;0
+lcdi.fr;#LCDI-1003;FAC-L-04285;20/05/2025;paid;Guilhem Caly;-406,58;406,58;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1004;;15/05/2025;paid;Guilhem Caly;57,42;11,48;68,9;0,0;67,75;1,15;0;0;0;0
+lcdi.fr;#LCDI-1005;;;voided;Thibault Machou;-686,99;686,99;0,0;4121,9;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1006;FAC-L-04287;19/05/2025;paid;Antunes José;-169,13;169,13;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1007;FAC-L-04293;20/05/2025;paid;Ihssane Mahbouli;82,41;16,48;98,89;0,0;97,55;1,34;0;0;0;0
+lcdi.fr;#LCDI-1008;FAC-L-04299;22/05/2025;paid;Romain Romain;-178,65;178,65;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1009;;;pending;Tran pham nguyen Tran pham ngyuen;-541,32;541,32;0,0;3247,9;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1010;FAC-L-04305;23/05/2025;paid;Tanguy Toulat;105,75;21,15;126,9;0,0;125,25;1,65;0;0;0;0
+lcdi.fr;#LCDI-1011;;;voided;axel xu;-177,98;177,98;0,0;1067,9;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1012;;;voided;Sylvain Do;-90,65;90,65;0,0;543,9;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1013;;;voided;test test;-46,33;46,33;0,0;278,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1014;;26/05/2025;refunded;Ali El Badri;736,81;66,99;803,8;0,0;-4,669999999999959;4,67;0;0;0;0
+lcdi.fr;#LCDI-1015;;31/05/2025;paid;soidri Houmadi;-715,33;715,33;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1016;FAC-L-04324;;paid;Eric Barrault;749,17;149,83;899,0;0,0;888,86;10,14;0;0;0;0
+lcdi.fr;#LCDI-1017;;;refunded;Maxime Molatchom;1071,22;101,78;1173,0;0,0;-6,7000000000000455;6,7;0;0;0;0
+lcdi.fr;#LCDI-1018;FAC-L-04322;02/06/2025;paid;Marina Meunier;-91,32;91,32;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1019;FAC-L-04330;03/06/2025;paid;Estéban Faure;1810,7399999999998;362,15;2172,89;0,0;2148,74;24,15;0;0;0;0
+lcdi.fr;#LCDI-1020;FAC-L-04335;02/06/2025;paid;Dylan Sersoub;-344,65;344,65;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1020;FAC-L-04321;02/06/2025;paid;Dylan Sersoub;-344,65;344,65;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1021;FAC-L-04335;30/05/2025;paid;Dylan Sersoub;13,25;2,65;15,9;0,0;15,48;0,42;0;0;0;0
+lcdi.fr;#LCDI-1021;FAC-L-04321;30/05/2025;paid;Dylan Sersoub;13,25;2,65;15,9;0,0;15,48;0,42;0;0;0;0
+lcdi.fr;#LCDI-1022;FAC-L-04337;03/06/2025;paid;Aurele Bourgeois;764,92;152,98;917,9;0,0;907,55;10,35;0;0;0;0
+lcdi.fr;#LCDI-1023;;03/06/2025;paid;MOURAD LOUSSAIEF;-90,65;90,65;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1024;;;pending;Badr Boudaoua;-113,15;113,15;0,0;678,9;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1025;FAC-L-04339;04/06/2025;paid;Yannis Quenneville;-132,98;132,98;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1026;FAC-L-04346;04/06/2025;paid;adrien vergé;-107,29;107,29;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1027;FAC-L-04345;03/06/2025;paid;Louis Mohand kaci;764,92;152,98;917,9;0,0;907,55;10,35;0;0;0;0
+lcdi.fr;#LCDI-1028;FAC-L-04340;03/06/2025;paid;Alexis Guinot;764,92;152,98;917,9;0,0;890,93;26,97;0;0;0;0
+lcdi.fr;#LCDI-1029;;04/06/2025;paid;Nolwenn Savin;-686,99;686,99;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1030;FAC-L-04344;04/06/2025;paid;Camille Michaut;789,0799999999999;157,82;946,9;0,0;936,23;10,67;0;0;0;0
+lcdi.fr;#LCDI-1031;FAC-L-04343;04/06/2025;paid;Maxime Bourgois houx;789,0799999999999;157,82;946,9;0,0;936,23;10,67;0;0;0;0
+lcdi.fr;#LCDI-1032;FAC-L-04325;03/06/2025;paid;Gustav Lê;65,75;13,15;78,9;0,0;77,78;1,12;0;0;0;0
+lcdi.fr;#LCDI-1033;;03/06/2025;paid;Angélique IGHMOUR-MOURIERE;-91,32;91,32;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1034;FAC-L-04342;03/06/2025;paid;François REITZER;453,25;90,65;543,9;0,0;527,78;16,12;0;0;0;0
+lcdi.fr;#LCDI-1035;FAC-L-04341;04/06/2025;paid;Kesley Thames;789,8399999999999;157,96;947,8;0,0;919,96;27,84;0;0;0;0
+lcdi.fr;#LCDI-1036;FAC-L-04336;03/06/2025;paid;pierrick levard;1726,5800000000002;345,32;2071,9;0,0;2011,46;60,44;0;0;0;0
+lcdi.fr;#LCDI-1037;FAC-L-04338;03/06/2025;paid;Maxence Delforge;764,92;152,98;917,9;0,0;890,93;26,97;0;0;0;0
+lcdi.fr;#LCDI-1038;FAC-L-04347;;paid;Yvon Florian;-133,62;133,62;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1039;;04/06/2025;paid;mehdi tebbi;-153,65;153,65;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1040;;;paid;Dylan Laporte;-252,98;252,98;0,0;0,0;0,0;0,0;0;0;0;0
+lcdi.fr;#LCDI-1041;;;paid;HENRY SMITH;633,24;126,65;759,89;0,0;737,5;22,39;0;0;0;0
+lcdi.fr;#LCDI-1042;;04/06/2025;paid;Marine Esquillot;-90,65;90,65;0,0;0,0;0,0;0,0;0;0;0;0
