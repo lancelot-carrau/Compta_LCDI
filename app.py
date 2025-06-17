@@ -1573,14 +1573,14 @@ def save_with_conditional_formatting(df_result, output_path):
         missing_fill = PatternFill(start_color='CC0000', end_color='CC0000', fill_type='solid')  # Rouge encore plus profond
         incomplete_fill = PatternFill(start_color='CC0000', end_color='CC0000', fill_type='solid')  # Même rouge encore plus profond        # Vert plus profond pour COMPLET
         complete_fill = PatternFill(start_color='66CC66', end_color='66CC66', fill_type='solid')  # Vert plus profond
-        
-        # Style pour les en-têtes (gras)
+          # Style pour les en-têtes (gras)
         from openpyxl.styles import Font
-        header_font = Font(bold=True)
+        arial_font = Font(name='Arial', size=10)  # Police Arial par défaut
+        header_font = Font(name='Arial', bold=True, size=10)
         
         # Style pour la colonne Shopify (texte rouge)
-        shopify_font = Font(color='FF0000', bold=True)  # Rouge pour l'en-tête
-        shopify_content_font = Font(color='FF0000')  # Rouge pour le contenu
+        shopify_font = Font(name='Arial', color='FF0000', bold=True, size=10)  # Rouge pour l'en-tête
+        shopify_content_font = Font(name='Arial', color='FF0000', size=10)  # Rouge pour le contenu
         
         # Colonnes où vérifier les données manquantes (exclure les colonnes numériques qui sont à 0)
         important_columns = ['Réf. LMB', 'Date Facture', 'Etat', 'Client']
@@ -1602,10 +1602,12 @@ def save_with_conditional_formatting(df_result, output_path):
             if col_name == 'Statut':
                 statut_col_idx = idx
             elif col_name == 'Shopify':
-                shopify_col_idx = idx
-          # Appliquer le formatage aux cellules
+                shopify_col_idx = idx        # Appliquer le formatage aux cellules
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=0):
             for col_idx, cell in enumerate(row):
+                # Appliquer la police Arial par défaut à toutes les cellules
+                cell.font = arial_font
+                
                 # 1. Formatage des cellules vides dans les colonnes importantes
                 if col_idx < len(header_row) and header_row[col_idx] in important_columns:
                     # Vérifier si la cellule correspondante dans le DataFrame est vide/NaN
