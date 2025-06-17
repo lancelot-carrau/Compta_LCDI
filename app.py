@@ -333,11 +333,10 @@ def calculate_corrected_amounts(df_merged_final):
         df_merged_final = df_merged_final.loc[:, ~df_merged_final.columns.duplicated()]
         print(f"DEBUG: Colonnes après suppression des doublons: {list(df_merged_final.columns)}")
     
-    # Initialiser toutes les séries avec NaN (cellules vides)
-    n_rows = len(df_merged_final)
-    ttc_amounts = pd.Series([None] * n_rows, dtype=float)
-    ht_amounts = pd.Series([None] * n_rows, dtype=float)
-    tva_amounts = pd.Series([None] * n_rows, dtype=float)
+    # Initialiser toutes les séries avec NaN (cellules vides) et le bon index
+    ttc_amounts = pd.Series([None] * len(df_merged_final), dtype=float, index=df_merged_final.index)
+    ht_amounts = pd.Series([None] * len(df_merged_final), dtype=float, index=df_merged_final.index)
+    tva_amounts = pd.Series([None] * len(df_merged_final), dtype=float, index=df_merged_final.index)
     
     # PRIORITÉ 1: Utiliser les montants du Journal si disponibles
     journal_ttc_available = 'Montant du document TTC' in df_merged_final.columns
@@ -363,7 +362,7 @@ def calculate_corrected_amounts(df_merged_final):
             
             # Calculer TVA = TTC - HT (seulement là où on a les deux)
             mask_both_available = ttc_amounts.notna() & ht_amounts.notna()
-            tva_amounts[mask_both_available] = ttc_amounts[mask_both_available] - ht_amounts[mask_both_available]
+            tva_amounts.loc[mask_both_available] = ttc_amounts.loc[mask_both_available] - ht_amounts.loc[mask_both_available]
         else:
             print("DEBUG: Pas de montants HT dans le Journal - cellules HT et TVA restent vides")
             # Laisser HT et TVA vides si pas dans le journal
@@ -377,20 +376,21 @@ def calculate_corrected_amounts(df_merged_final):
             mask_no_lmb = ~has_lmb
             
             ttc_from_orders = pd.to_numeric(df_merged_final['Total'], errors='coerce')
-            ttc_amounts[mask_no_lmb] = ttc_from_orders[mask_no_lmb]
+            ttc_amounts.loc[mask_no_lmb] = ttc_from_orders.loc[mask_no_lmb]
             
             if 'Taxes' in df_merged_final.columns:
                 tva_from_orders = pd.to_numeric(df_merged_final['Taxes'], errors='coerce')
-                tva_amounts[mask_no_lmb] = tva_from_orders[mask_no_lmb]
+                tva_amounts.loc[mask_no_lmb] = tva_from_orders.loc[mask_no_lmb]
                 
                 # Calculer HT = TTC - TVA pour les lignes sans journal
                 mask_calc_ht = mask_no_lmb & ttc_amounts.notna() & tva_amounts.notna()
-                ht_amounts[mask_calc_ht] = ttc_amounts[mask_calc_ht] - tva_amounts[mask_calc_ht]
+                ht_amounts.loc[mask_calc_ht] = ttc_amounts.loc[mask_calc_ht] - tva_amounts.loc[mask_calc_ht]
     
     # Statistiques finales
     ttc_filled = ttc_amounts.notna().sum()
     ht_filled = ht_amounts.notna().sum()
     tva_filled = tva_amounts.notna().sum()
+    n_rows = len(df_merged_final)
     
     print(f"DEBUG: Cellules remplies - TTC: {ttc_filled}/{n_rows}, HT: {ht_filled}/{n_rows}, TVA: {tva_filled}/{n_rows}")
     print(f"DEBUG: Cellules vides (formatage rouge) - TTC: {n_rows - ttc_filled}, HT: {n_rows - ht_filled}, TVA: {n_rows - tva_filled}")
@@ -1276,8 +1276,7 @@ def improve_journal_matching(df_orders, df_journal):
         if ' ' not in journal_ref_str:
             # Normaliser la référence
             journal_normalized = journal_ref_str if journal_ref_str.startswith('#') else f"#{journal_ref_str}"
-            journal_mapping[journal_normalized] = journal_row
-          # Cas 2: Référence multiple (ex: LCDI-1020 LCDI-1021)
+            journal_mapping[journal_normalized] = journal_row          # Cas 2: Référence multiple (ex: LCDI-1020 LCDI-1021) 
         else:
             import re
             # Extraire tous les numéros de commandes
@@ -1286,20 +1285,107 @@ def improve_journal_matching(df_orders, df_journal):
             if numbers:
                 print(f"     - Référence multiple détectée: '{journal_ref_str}' -> commandes {numbers}")
                 
-                # Pour les références multiples, ne partager que les informations non-monétaires
-                # Créer une copie de la ligne journal sans les montants
-                shared_journal_data = journal_row.copy()
-                  # Effacer les colonnes de montants pour éviter la duplication
-                monetary_cols = ['Montant du document TTC', 'Montant du document HT', 'Montant marge HT']
-                for col in monetary_cols:
-                    if col in shared_journal_data.index:
-                        shared_journal_data[col] = None  # On garde la Réf. LMB mais on efface les montants
+                # Pour les références multiples, on doit répartir les montants
+                # Stratégie: calculer le poids de chaque commande et répartir proportionnellement
                 
-                # Mapper chaque commande vers cette version "allégée" de la ligne journal
+                # Récupérer les montants totaux des commandes concernées pour calculer les proportions
+                command_totals = {}
+                total_sum = 0
+                
                 for num in numbers:
                     target_ref = f"#LCDI-{num}"
-                    journal_mapping[target_ref] = shared_journal_data
-                    print(f"       - Mapped {target_ref} -> {shared_journal_data['Référence LMB']} (montants préservés depuis commande)")
+                    # Trouver la commande correspondante dans df_orders_copy
+                    matching_orders = df_orders_copy[df_orders_copy['Name_normalized'] == target_ref]
+                    if not matching_orders.empty:
+                        order_total = pd.to_numeric(matching_orders.iloc[0]['Total'], errors='coerce')
+                        if pd.notna(order_total):
+                            command_totals[target_ref] = order_total
+                            total_sum += order_total
+                        else:
+                            command_totals[target_ref] = 0
+                    else:
+                        command_totals[target_ref] = 0
+                
+                print(f"       - Totaux des commandes : {command_totals}, somme: {total_sum}")
+                
+                # Récupérer les montants du journal
+                journal_ttc = journal_row.get('Montant du document TTC', None)
+                journal_ht = journal_row.get('Montant du document HT', None)
+                journal_marge = journal_row.get('Montant marge HT', None)
+                
+                # Convertir les montants du journal au format numérique
+                if pd.notna(journal_ttc):
+                    try:
+                        journal_ttc_num = float(str(journal_ttc).replace(',', '.').replace(' ', ''))
+                    except:
+                        journal_ttc_num = None
+                else:
+                    journal_ttc_num = None
+                    
+                if pd.notna(journal_ht):
+                    try:
+                        journal_ht_num = float(str(journal_ht).replace(',', '.').replace(' ', ''))
+                    except:
+                        journal_ht_num = None
+                else:
+                    journal_ht_num = None
+                    
+                if pd.notna(journal_marge):
+                    try:
+                        journal_marge_num = float(str(journal_marge).replace(',', '.').replace(' ', ''))
+                    except:
+                        journal_marge_num = None
+                else:
+                    journal_marge_num = None
+                
+                print(f"       - Montants journal : TTC={journal_ttc_num}, HT={journal_ht_num}, Marge={journal_marge_num}")
+                
+                # Répartir les montants proportionnellement
+                for num in numbers:
+                    target_ref = f"#LCDI-{num}"
+                    
+                    # Créer une copie de la ligne journal pour cette commande
+                    proportional_journal_data = journal_row.copy()
+                    
+                    # Calculer la proportion de cette commande
+                    if total_sum > 0 and command_totals[target_ref] > 0:
+                        proportion = command_totals[target_ref] / total_sum
+                        print(f"       - {target_ref}: proportion = {proportion:.3f}")
+                        
+                        # Répartir les montants
+                        if journal_ttc_num is not None:
+                            proportional_ttc = journal_ttc_num * proportion
+                            proportional_journal_data['Montant du document TTC'] = f"{proportional_ttc:.2f}".replace('.', ',')
+                        
+                        if journal_ht_num is not None:
+                            proportional_ht = journal_ht_num * proportion
+                            proportional_journal_data['Montant du document HT'] = f"{proportional_ht:.2f}".replace('.', ',')
+                        
+                        if journal_marge_num is not None:
+                            proportional_marge = journal_marge_num * proportion
+                            proportional_journal_data['Montant marge HT'] = f"{proportional_marge:.2f}".replace('.', ',')
+                            
+                        print(f"         - Montants répartis : TTC={proportional_ttc:.2f}, HT={proportional_ht:.2f}")
+                    else:
+                        # Si pas de proportion calculable, distribuer équitablement
+                        equal_proportion = 1.0 / len(numbers)
+                        print(f"       - {target_ref}: proportion égale = {equal_proportion:.3f}")
+                        
+                        if journal_ttc_num is not None:
+                            equal_ttc = journal_ttc_num * equal_proportion
+                            proportional_journal_data['Montant du document TTC'] = f"{equal_ttc:.2f}".replace('.', ',')
+                        
+                        if journal_ht_num is not None:
+                            equal_ht = journal_ht_num * equal_proportion
+                            proportional_journal_data['Montant du document HT'] = f"{equal_ht:.2f}".replace('.', ',')
+                        
+                        if journal_marge_num is not None:
+                            equal_marge = journal_marge_num * equal_proportion
+                            proportional_journal_data['Montant marge HT'] = f"{equal_marge:.2f}".replace('.', ',')
+                    
+                    # Stocker le mapping
+                    journal_mapping[target_ref] = proportional_journal_data
+                    print(f"       - Mapped {target_ref} -> {proportional_journal_data['Référence LMB']} (montants répartis)")
     
     # Appliquer le mapping aux commandes
     journal_data = []
@@ -1339,22 +1425,32 @@ def fill_missing_data_indicators(df_final, df_merged_final):
     for col in secondary_numeric_columns:
         if col in df_final.columns:
             df_final[col] = df_final[col].fillna(0)
-    
-    # 2. Déterminer le statut : COMPLET ou INCOMPLET
-    has_transaction = df_merged_final['Presentment Amount'].fillna(0) > 0
-    
+      # 2. Déterminer le statut : COMPLET ou INCOMPLET
     status_info = []
     for idx, row in df_final.iterrows():
         # Une ligne est COMPLÈTE si elle a :
         # - Une référence LMB (pas vide/NaN)
-        # - Une transaction (TTC > 0)  
+        # - Au moins une méthode de paiement avec un montant > 0
         # - Une date de facture (pas vide/NaN)
         
         has_lmb = pd.notna(row['Réf. LMB']) and str(row['Réf. LMB']).strip() != ''
-        has_ttc = has_transaction.iloc[idx] if idx < len(has_transaction) else False
         has_date = pd.notna(row['Date Facture']) and str(row['Date Facture']).strip() != ''
         
-        if has_lmb and has_ttc and has_date:
+        # Vérifier toutes les méthodes de paiement
+        payment_methods = ['Virement bancaire', 'ALMA', 'Younited', 'PayPal', 'Shopify']
+        has_payment = False
+        
+        for method in payment_methods:
+            if method in row and pd.notna(row[method]):
+                try:
+                    amount = float(row[method])
+                    if abs(amount) > 0.01:  # Tolérance pour les erreurs d'arrondi
+                        has_payment = True
+                        break
+                except (ValueError, TypeError):
+                    continue
+        
+        if has_lmb and has_payment and has_date:
             status_info.append("COMPLET")
         else:
             status_info.append("INCOMPLET")
@@ -1472,35 +1568,42 @@ def save_with_conditional_formatting(df_result, output_path):
         ws.title = "Tableau Facturation"
           # Ajouter les données du DataFrame
         for r in dataframe_to_rows(df_result, index=False, header=True):
-            ws.append(r)
-        
-        # Définir les styles de formatage
-        # Rouge plus sombre pour les cellules manquantes et INCOMPLET
-        missing_fill = PatternFill(start_color='FFB3B3', end_color='FFB3B3', fill_type='solid')  # Rouge plus sombre
-        incomplete_fill = PatternFill(start_color='FFB3B3', end_color='FFB3B3', fill_type='solid')  # Même rouge
-        # Vert clair pour COMPLET
-        complete_fill = PatternFill(start_color='B3FFB3', end_color='B3FFB3', fill_type='solid')  # Vert clair
+            ws.append(r)        # Définir les styles de formatage
+        # Rouge encore plus profond pour les cellules manquantes et INCOMPLET
+        missing_fill = PatternFill(start_color='CC0000', end_color='CC0000', fill_type='solid')  # Rouge encore plus profond
+        incomplete_fill = PatternFill(start_color='CC0000', end_color='CC0000', fill_type='solid')  # Même rouge encore plus profond        # Vert plus profond pour COMPLET
+        complete_fill = PatternFill(start_color='66CC66', end_color='66CC66', fill_type='solid')  # Vert plus profond
         
         # Style pour les en-têtes (gras)
         from openpyxl.styles import Font
         header_font = Font(bold=True)
         
-        # Appliquer le formatage gras aux en-têtes (première ligne)
-        for cell in ws[1]:
-            cell.font = header_font
+        # Style pour la colonne Shopify (texte rouge)
+        shopify_font = Font(color='FF0000', bold=True)  # Rouge pour l'en-tête
+        shopify_content_font = Font(color='FF0000')  # Rouge pour le contenu
         
         # Colonnes où vérifier les données manquantes (exclure les colonnes numériques qui sont à 0)
         important_columns = ['Réf. LMB', 'Date Facture', 'Etat', 'Client']
         header_row = [cell.value for cell in ws[1]]
         
-        # Trouver l'index de la colonne Statut
+        # Appliquer le formatage gras aux en-têtes (première ligne)
+        for col_idx, cell in enumerate(ws[1]):
+            if col_idx < len(header_row) and header_row[col_idx] == 'Shopify':
+                # En-tête Shopify en rouge gras
+                cell.font = shopify_font
+            else:
+                # Autres en-têtes en gras normal
+                cell.font = header_font
+        
+        # Trouver l'index de la colonne Statut et Shopify
         statut_col_idx = None
+        shopify_col_idx = None
         for idx, col_name in enumerate(header_row):
             if col_name == 'Statut':
                 statut_col_idx = idx
-                break
-        
-        # Appliquer le formatage aux cellules
+            elif col_name == 'Shopify':
+                shopify_col_idx = idx
+          # Appliquer le formatage aux cellules
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=0):
             for col_idx, cell in enumerate(row):
                 # 1. Formatage des cellules vides dans les colonnes importantes
@@ -1520,6 +1623,11 @@ def save_with_conditional_formatting(df_result, output_path):
                         cell.fill = complete_fill
                     elif cell.value == 'INCOMPLET':
                         cell.fill = incomplete_fill
+                
+                # 3. Formatage de la colonne Shopify (texte rouge)
+                elif col_idx == shopify_col_idx and shopify_col_idx is not None:
+                    if cell.value is not None and cell.value != 0:
+                        cell.font = shopify_content_font
         
         # Ajuster la largeur des colonnes
         for column in ws.columns:
@@ -1533,6 +1641,9 @@ def save_with_conditional_formatting(df_result, output_path):
                     pass
             adjusted_width = min(max_length + 2, 50)  # Max 50 caractères
             ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Figer la première ligne (en-têtes de colonnes) pour qu'elle reste visible lors du défilement
+        ws.freeze_panes = 'A2'  # Fige tout ce qui est au-dessus de la ligne 2 (donc la ligne 1 avec les en-têtes)
         
         # Changer l'extension pour Excel
         excel_path = output_path.replace('.csv', '.xlsx')

@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, r'C:\Code\Apps\Compta LCDI V2')
 
-from app import generate_consolidated_billing_table
+from app import generate_consolidated_billing_table, save_with_conditional_formatting
 import pandas as pd
 from datetime import datetime
 
@@ -53,36 +53,24 @@ def test_and_save_corrected_file():
         coverage = has_payment_method.sum()
         coverage_pct = coverage / len(df_result) * 100
         print(f"   📊 Couverture: {coverage}/{len(df_result)} ({coverage_pct:.1f}%)")
-        
-        # 4. Sauvegarder le fichier Excel avec formatage
-        print(f"\n3. Sauvegarde du fichier avec formatage conditionnel...")
+          # 4. Sauvegarder le fichier Excel avec formatage et figement des volets
+        print(f"\n3. Sauvegarde du fichier avec formatage conditionnel et figement des en-têtes...")
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_filename = f'tableau_facturation_CORRECTED_payment_methods_{timestamp}.xlsx'
-        output_path = os.path.join(r'C:\Code\Apps\Compta LCDI V2\output', output_filename)
+        output_path_base = os.path.join(r'C:\Code\Apps\Compta LCDI V2\output', output_filename.replace('.xlsx', '.csv'))
         
-        # Créer le writer Excel
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-            df_result.to_excel(writer, index=False, sheet_name='Facturation')
-            
-            # Obtenir la feuille pour le formatage
-            worksheet = writer.sheets['Facturation']
-            
-            # Formatage conditionnel pour les cellules vides (rouge clair)
-            from openpyxl.styles import PatternFill
-            from openpyxl.formatting.rule import CellIsRule
-            
-            red_fill = PatternFill(start_color='FFDDDD', end_color='FFDDDD', fill_type='solid')
-            
-            # Appliquer aux colonnes HT, TVA, TTC (colonnes G, H, I si structure standard)
-            monetary_columns = ['G', 'H', 'I']  # HT, TVA, TTC
-            for col in monetary_columns:
-                rule = CellIsRule(operator='equal', formula=['""'], fill=red_fill)
-                worksheet.conditional_formatting.add(f'{col}2:{col}{len(df_result)+1}', rule)
+        # Utiliser la fonction officielle qui inclut le figement des volets
+        final_path, is_excel = save_with_conditional_formatting(df_result, output_path_base)
+        output_filename = os.path.basename(final_path)
         
-        print(f"✅ Fichier sauvegardé: {output_filename}")
+        if is_excel:
+            print(f"✅ Fichier Excel sauvegardé avec figement des en-têtes: {output_filename}")
+        else:
+            print(f"⚠️ Fichier CSV sauvegardé (Excel non disponible): {output_filename}")
         
-        # 5. Vérifier le fichier sauvegardé
+        output_path = final_path
+          # 5. Vérifier le fichier sauvegardé
         print(f"\n4. Vérification du fichier sauvegardé...")
         df_saved = pd.read_excel(output_path)
         
@@ -97,6 +85,7 @@ def test_and_save_corrected_file():
         print(f"✅ Correction des méthodes de paiement appliquée avec succès")
         print(f"✅ Fichier généré: {output_filename}")
         print(f"✅ Les colonnes PayPal, ALMA, Younited, Virement bancaire sont maintenant remplies")
+        print(f"✅ Les en-têtes de colonnes sont maintenant figés pour rester visibles lors du défilement")
         
         return output_path
         

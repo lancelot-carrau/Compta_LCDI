@@ -9,27 +9,28 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }
-
-        body {
+        }        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            margin: 0;
+            padding: 15px;
+            overflow-x: auto;
         }
 
         .container {
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
-            padding: 50px;
-            max-width: 700px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            padding: 25px;
+            max-width: 1400px;
             width: 100%;
+            margin: 0 auto;
             position: relative;
             overflow: hidden;
+            min-height: calc(100vh - 30px);
+            display: flex;
+            flex-direction: column;
         }
 
         .container::before {
@@ -38,50 +39,107 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 5px;
+            height: 4px;
             background: linear-gradient(90deg, #667eea, #764ba2);
         }
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
+            flex-shrink: 0;
         }
 
         .header h1 {
             color: #333;
-            font-size: 2.5em;
-            margin-bottom: 15px;
+            font-size: 2.2em;
+            margin-bottom: 8px;
             font-weight: 700;
         }
 
         .header p {
             color: #666;
-            font-size: 1.2em;
-            line-height: 1.6;
+            font-size: 1.1em;
+            line-height: 1.4;
+            margin-bottom: 0;
+        }        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .info-section {
+            width: 100%;
+        }
+
+        .files-section {
+            flex: 1;
         }
 
         .form-section {
-            margin-bottom: 35px;
+            margin-bottom: 20px;
         }
 
         .form-section h3 {
             color: #333;
             font-size: 1.3em;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             padding-bottom: 8px;
             border-bottom: 2px solid #f0f0f0;
+            text-align: center;
         }
 
-        .form-group {
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
             margin-bottom: 25px;
         }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 10px;
+        .file-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .file-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .file-card.selected {
+            border-color: #28a745;
+            background: #f8fff9;
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.15);
+        }
+
+        .file-card-header {
+            margin-bottom: 15px;
+        }
+
+        .file-card-title {
+            font-size: 1.1em;
             font-weight: 600;
             color: #333;
-            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+        .file-card-subtitle {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+        }
+
+        .form-group {
+            margin-bottom: 0;
+        }
+
+        .form-group label {
+            display: none; /* Caché car déjà dans le header de la carte */
         }
 
         .file-input-wrapper {
@@ -92,36 +150,47 @@
 
         .file-input {
             width: 100%;
-            padding: 18px;
+            padding: 15px;
             border: 2px dashed #ddd;
-            border-radius: 12px;
-            background: #f9f9f9;
-            font-size: 16px;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
             transition: all 0.3s ease;
             cursor: pointer;
             color: #666;
+            text-align: center;
         }
 
         .file-input:hover {
             border-color: #667eea;
             background: #f0f4ff;
-            transform: translateY(-2px);
         }
 
         .file-input:focus {
             outline: none;
             border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
         .file-selected {
             border-color: #28a745 !important;
-            background: #f8fff9 !important;
+            background: #f0fff4 !important;
             color: #28a745;
+        }
+
+        .file-requirements {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 8px;
+            line-height: 1.3;
+            text-align: left;
         }
 
         .submit-btn {
             width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            display: block;
             padding: 18px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -131,14 +200,13 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin-top: 30px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
         .submit-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.4);
         }
 
         .submit-btn:disabled {
@@ -153,91 +221,108 @@
         }
 
         .alert {
-            padding: 18px;
-            margin-bottom: 25px;
-            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 15px;
+            border-radius: 10px;
             font-weight: 500;
-            font-size: 16px;
+            font-size: 14px;
         }
 
         .alert-error {
             background: #ffeaea;
             color: #d8000c;
             border: 1px solid #ffcdd2;
-        }
-
-        .alert-success {
+        }        .alert-success {
             background: #eafff0;
             color: #2e7d32;
             border: 1px solid #c8e6c9;
         }
 
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        .loading.show {
-            display: block;
-        }
-
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .info-box {
             background: #e3f2fd;
             border: 1px solid #bbdefb;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 30px;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
             color: #1565c0;
+            text-align: center;
         }
 
         .info-box h4 {
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             color: #0d47a1;
+            font-size: 1.3em;
         }
 
-        .info-box ul {
-            margin: 10px 0 0 20px;
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 15px 0;
         }
 
-        .info-box li {
-            margin-bottom: 5px;
+        .info-item {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(187, 222, 251, 0.5);
         }
 
-        .file-requirements {
+        .info-item strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #0d47a1;
+            font-size: 1em;
+        }
+
+        .info-item small {
+            font-size: 0.8em;
+            color: #1976d2;
+            line-height: 1.3;
+        }
+
+        .info-box p {
+            margin: 8px 0 4px 0;
             font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
-            font-style: italic;
+        }
+
+        @media (max-width: 1200px) {
+            .files-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
         }
 
         @media (max-width: 768px) {
             .container {
-                padding: 30px;
-                margin: 10px;
+                padding: 20px;
+                margin: 5px;
+                min-height: calc(100vh - 10px);
             }
             
             .header h1 {
-                font-size: 2em;
+                font-size: 1.8em;
             }
             
             .header p {
                 font-size: 1em;
+            }
+            
+            .main-content {
+                gap: 15px;
+            }
+            
+            .files-grid {
+                gap: 12px;
+            }
+            
+            .file-card {
+                padding: 15px;
             }
         }
     </style>
@@ -247,9 +332,7 @@
         <div class="header">
             <h1>📊 LCDI Facturation</h1>
             <p>Générateur automatique de tableau de facturation consolidé</p>
-        </div>
-
-        <!-- Messages d'alerte -->
+        </div>        <!-- Messages d'alerte -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -258,91 +341,117 @@
                     </div>
                 {% endfor %}
             {% endif %}
-        {% endwith %}        <!-- Informations sur les fichiers requis -->
-        <div class="info-box">
-            <h4>📋 Fichiers requis :</h4>
-            <ul>                <li><strong>Fichier des commandes</strong> - Format CSV avec séparateur virgule (,)
-                    <br><small>Colonnes requises : Name/Id, Fulfilled at, Billing name/Billing Name, Financial Status, Tax 1 Value/Taxes, Outstanding Balance, Payment Method, Total, Taxes</small>
-                </li>
-                <li><strong>Fichier des transactions</strong> - Format CSV avec séparateur virgule (,)
-                    <br><small>Colonnes requises : Order/Name/Id, Presentment Amount/Total, Fee, Net</small>
-                </li>
-                <li><strong>Fichier Journal</strong> - Format CSV avec séparateur point-virgule (;)
-                    <br><small>Colonnes requises : Piece/Reference/Id, Référence LMB</small>
-                </li>
-            </ul>            <p><em>Taille maximale par fichier : 16 MB</em></p>
-            <p><em>💡 L'application détecte automatiquement les variantes de noms de colonnes</em></p>
-            <p><em>🔄 Les commandes avec plusieurs lignes (produits multiples) sont automatiquement consolidées</em></p>
-        </div><!-- Formulaire principal -->
-        <form method="POST" action="{{ url_for('process_files') }}" enctype="multipart/form-data" id="uploadForm">
-            
-            <div class="form-section">
-                <h3>📄 Sélection des fichiers</h3>
-                
-                <div class="form-group">
-                    <label for="orders_file">
-                        1. Fichier des commandes (orders_export.csv)
-                    </label>
-                    <input type="file" 
-                           class="file-input" 
-                           id="orders_file" 
-                           name="orders_file" 
-                           accept=".csv" 
-                           required>                    <div class="file-requirements">
-                        Colonnes requises : Name, Fulfilled at, Billing name, Financial Status, Tax 1 Value, Outstanding Balance, Payment Method, Total, Taxes
-                    </div>
-                </div>
+        {% endwith %}
 
-                <div class="form-group">
-                    <label for="transactions_file">
-                        2. Fichier des transactions (payment_transactions_export.csv)
-                    </label>
-                    <input type="file" 
-                           class="file-input" 
-                           id="transactions_file" 
-                           name="transactions_file" 
-                           accept=".csv" 
-                           required>
-                    <div class="file-requirements">
-                        Colonnes requises : Order, Presentment Amount, Fee, Net
+        <div class="main-content">
+            <!-- Section d'informations sous le titre -->
+            <div class="info-section">
+                <div class="info-box">
+                    <h4>📋 Fichiers requis</h4>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <strong>📄 Commandes</strong>
+                            <small>Format CSV (,)<br>
+                            Name, Fulfilled at, Billing name, Financial Status, Tax 1 Value, Outstanding Balance, Payment Method, Total, Taxes</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>💳 Transactions</strong>
+                            <small>Format CSV (,)<br>
+                            Order, Presentment Amount, Fee, Net</small>
+                        </div>                        <div class="info-item">
+                            <strong>📊 Journal</strong>
+                            <small>Format CSV (;)<br>
+                            Référence LMB, Référence externe, Montant TTC/HT, Date</small>
+                        </div>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="journal_file">
-                        3. Fichier Journal (20250604-Journal.csv)
-                    </label>
-                    <input type="file" 
-                           class="file-input" 
-                           id="journal_file" 
-                           name="journal_file" 
-                           accept=".csv" 
-                           required>
-                    <div class="file-requirements">
-                        Colonnes requises : Piece, Référence LMB (séparateur point-virgule)
-                    </div>
+                    
+                    <p><em>💡 Détection automatique des variantes de colonnes • 🔄 Consolidation des commandes multiples • 📏 Taille max : 16 MB</em></p>
                 </div>
             </div>
 
-            <button type="submit" class="submit-btn" id="submitBtn">
-                🚀 Générer le tableau consolidé
-            </button>
-        </form>
+            <!-- Section des fichiers en cartes côte à côte -->
+            <div class="files-section">
+                <form method="POST" action="{{ url_for('process_files') }}" enctype="multipart/form-data" id="uploadForm">
+                    
+                    <div class="form-section">
+                        <h3>� Sélectionnez vos fichiers</h3>
+                        
+                        <div class="files-grid">
+                            <!-- Carte 1: Commandes -->
+                            <div class="file-card" id="card-orders">
+                                <div class="file-card-header">
+                                    <div class="file-card-title">📄 Commandes</div>
+                                    <div class="file-card-subtitle">orders_export.csv</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="orders_file">Fichier des commandes</label>
+                                    <input type="file" 
+                                           class="file-input" 
+                                           id="orders_file" 
+                                           name="orders_file" 
+                                           accept=".csv" 
+                                           required
+                                           placeholder="Cliquez ou glissez votre fichier">
+                                    <div class="file-requirements">
+                                        Colonnes principales : Name, Total, Taxes, Billing name, Financial Status, Payment Method
+                                    </div>
+                                </div>
+                            </div>
 
-        <!-- Animation de chargement -->
-        <div class="loading" id="loadingDiv">
-            <div class="spinner"></div>
-            <p>Traitement en cours... Veuillez patienter.</p>
-            <p><small>Chargement, nettoyage et fusion des données...</small></p>
+                            <!-- Carte 2: Transactions -->
+                            <div class="file-card" id="card-transactions">
+                                <div class="file-card-header">
+                                    <div class="file-card-title">💳 Transactions</div>
+                                    <div class="file-card-subtitle">payment_transactions_export.csv</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="transactions_file">Fichier des transactions</label>
+                                    <input type="file" 
+                                           class="file-input" 
+                                           id="transactions_file" 
+                                           name="transactions_file" 
+                                           accept=".csv" 
+                                           required
+                                           placeholder="Cliquez ou glissez votre fichier">
+                                    <div class="file-requirements">
+                                        Colonnes principales : Order, Presentment Amount, Fee, Net
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Carte 3: Journal -->
+                            <div class="file-card" id="card-journal">
+                                <div class="file-card-header">
+                                    <div class="file-card-title">📊 Journal</div>
+                                    <div class="file-card-subtitle">20250604-Journal.csv</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="journal_file">Fichier Journal</label>
+                                    <input type="file" 
+                                           class="file-input" 
+                                           id="journal_file" 
+                                           name="journal_file" 
+                                           accept=".csv" 
+                                           required
+                                           placeholder="Cliquez ou glissez votre fichier">                                    <div class="file-requirements">
+                                        Colonnes principales : Référence LMB, Référence externe, Montant TTC/HT (séparateur point-virgule)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>                    <button type="submit" class="submit-btn" id="submitBtn">
+                        🚀 Générer le tableau consolidé
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Gestion des fichiers et interface
+    <script>        // Gestion des fichiers et interface
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('uploadForm');
             const submitBtn = document.getElementById('submitBtn');
-            const loadingDiv = document.getElementById('loadingDiv');
             const fileInputs = document.querySelectorAll('.file-input');
 
             // Gestion de l'affichage des fichiers sélectionnés
@@ -408,24 +517,12 @@
                     alert('Veuillez sélectionner tous les fichiers requis.');
                     return;
                 }
-
-                // Afficher l'animation de chargement
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '⏳ Traitement en cours...';
-                loadingDiv.classList.add('show');
-                
-                // Faire défiler vers l'animation de chargement
-                setTimeout(() => {
-                    loadingDiv.scrollIntoView({ behavior: 'smooth' });
-                }, 100);
-            });
-
-            // Gestion du glisser-déposer
+            });            // Gestion du glisser-déposer sur toute la carte
             fileInputs.forEach(input => {
-                const wrapper = input.parentNode;
+                const card = input.closest('.file-card'); // Toute la carte au lieu du wrapper
                 
                 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                    wrapper.addEventListener(eventName, preventDefaults, false);
+                    card.addEventListener(eventName, preventDefaults, false);
                 });
 
                 function preventDefaults(e) {
@@ -434,28 +531,32 @@
                 }
 
                 ['dragenter', 'dragover'].forEach(eventName => {
-                    wrapper.addEventListener(eventName, highlight, false);
+                    card.addEventListener(eventName, highlight, false);
                 });
 
                 ['dragleave', 'drop'].forEach(eventName => {
-                    wrapper.addEventListener(eventName, unhighlight, false);
+                    card.addEventListener(eventName, unhighlight, false);
                 });
 
                 function highlight(e) {
-                    wrapper.classList.add('drag-over');
-                    input.style.borderColor = '#667eea';
-                    input.style.background = '#f0f4ff';
+                    card.classList.add('drag-over');
+                    card.style.borderColor = '#667eea';
+                    card.style.background = '#f0f4ff';
+                    card.style.transform = 'translateY(-4px)';
+                    card.style.boxShadow = '0 12px 35px rgba(102, 126, 234, 0.25)';
                 }
 
                 function unhighlight(e) {
-                    wrapper.classList.remove('drag-over');
+                    card.classList.remove('drag-over');
                     if (!input.classList.contains('file-selected')) {
-                        input.style.borderColor = '#ddd';
-                        input.style.background = '#f9f9f9';
+                        card.style.borderColor = '#e9ecef';
+                        card.style.background = '#f8f9fa';
                     }
+                    card.style.transform = '';
+                    card.style.boxShadow = '';
                 }
 
-                wrapper.addEventListener('drop', handleDrop, false);
+                card.addEventListener('drop', handleDrop, false);
 
                 function handleDrop(e) {
                     const dt = e.dataTransfer;
@@ -466,6 +567,14 @@
                         input.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 }
+
+                // Permettre de cliquer sur toute la carte pour ouvrir le sélecteur de fichier
+                card.addEventListener('click', function(e) {
+                    // Ne pas déclencher si on clique déjà sur l'input
+                    if (e.target !== input) {
+                        input.click();
+                    }
+                });
             });
         });
     </script>
