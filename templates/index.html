@@ -261,9 +261,8 @@
         {% endwith %}        <!-- Informations sur les fichiers requis -->
         <div class="info-box">
             <h4>📋 Fichiers requis :</h4>
-            <ul>
-                <li><strong>Fichier des commandes</strong> - Format CSV avec séparateur virgule (,)
-                    <br><small>Colonnes requises : Name/Id, Fulfilled at, Billing name/Billing Name, Financial Status, Tax 1 Value/Taxes, Outstanding Balance, Payment Method</small>
+            <ul>                <li><strong>Fichier des commandes</strong> - Format CSV avec séparateur virgule (,)
+                    <br><small>Colonnes requises : Name/Id, Fulfilled at, Billing name/Billing Name, Financial Status, Tax 1 Value/Taxes, Outstanding Balance, Payment Method, Total, Taxes</small>
                 </li>
                 <li><strong>Fichier des transactions</strong> - Format CSV avec séparateur virgule (,)
                     <br><small>Colonnes requises : Order/Name/Id, Presentment Amount/Total, Fee, Net</small>
@@ -289,9 +288,8 @@
                            id="orders_file" 
                            name="orders_file" 
                            accept=".csv" 
-                           required>
-                    <div class="file-requirements">
-                        Colonnes requises : Name, Fulfilled at, Billing name, Financial Status, Tax 1 Value, Outstanding Balance, Payment Method
+                           required>                    <div class="file-requirements">
+                        Colonnes requises : Name, Fulfilled at, Billing name, Financial Status, Tax 1 Value, Outstanding Balance, Payment Method, Total, Taxes
                     </div>
                 </div>
 

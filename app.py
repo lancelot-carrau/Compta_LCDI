@@ -106,21 +106,23 @@ def safe_read_csv(file_path, separator=','):
 
 def normalize_column_names(df, expected_columns, file_type=""):
     """Normalise les noms de colonnes en cherchant des correspondances approximatives"""
-    print(f"Colonnes disponibles dans {file_type}: {list(df.columns)}")
-      # Dictionnaire de mapping pour les variantes de noms de colonnes
+    print(f"Colonnes disponibles dans {file_type}: {list(df.columns)}")    # Dictionnaire de mapping pour les variantes de noms de colonnes
     column_mappings = {
         # Fichier des commandes
         'Name': ['Name', 'name', 'ORDER', 'Order', 'order', 'Nom', 'nom', 'Commande', 'commande', 'Id', 'ID', 'id', '#', 'Order ID', 'Order Id'],
-        'Fulfilled at': ['Fulfilled at', 'fulfilled at', 'Date', 'date', 'Date commande', 'Date_commande', 'Created at', 'created at'],
+        'Fulfilled at': ['Fulfilled at', 'fulfilled at', 'Date', 'date', 'Date commande', 'Date_commande'],
         'Billing name': ['Billing name', 'billing name', 'Client', 'client', 'Nom client', 'Nom_client', 'Billing Name', 'billing Name'],
         'Financial Status': ['Financial Status', 'financial status', 'Status', 'status', 'Statut', 'statut'],
-        'Tax 1 Value': ['Tax 1 Value', 'tax 1 value', 'TVA', 'tva', 'Tax', 'tax', 'Taxe', 'Taxes', 'taxes'],
+        'Tax 1 Value': ['Tax 1 Value', 'tax 1 value', 'TVA', 'tva', 'Tax', 'tax', 'Taxe'],
         'Outstanding Balance': ['Outstanding Balance', 'outstanding balance', 'Balance', 'balance', 'Solde', 'solde'],
         'Payment Method': ['Payment Method', 'payment method', 'Method', 'method', 'Méthode', 'méthode'],
+        # IMPORTANT: Colonnes pour le nouveau calcul HT/TVA/TTC
+        'Total': ['Total', 'total'],  # TTC - UNIQUEMENT la vraie colonne Total !
+        'Taxes': ['Taxes', 'taxes'],  # TVA - UNIQUEMENT la vraie colonne Taxes !
         
         # Fichier des transactions
         'Order': ['Order', 'order', 'Name', 'name', 'Commande', 'commande', 'Id', 'ID', 'id', 'Order ID', 'Order Id'],
-        'Presentment Amount': ['Presentment Amount', 'presentment amount', 'Amount', 'amount', 'Montant', 'montant', 'TTC', 'ttc', 'Total', 'total'],
+        'Presentment Amount': ['Presentment Amount', 'presentment amount', 'Amount', 'amount', 'Montant', 'montant'],
         'Fee': ['Fee', 'fee', 'Frais', 'frais', 'Commission', 'commission'],
         'Net': ['Net', 'net', 'Net Amount', 'net amount', 'Montant net', 'montant net'],
           # Fichier journal
@@ -159,13 +161,16 @@ def normalize_column_names(df, expected_columns, file_type=""):
                 'Fulfilled at': ['date', 'created', 'fulfill', 'livr'],
                 'Billing name': ['billing', 'client', 'nom', 'name'],
                 'Financial Status': ['status', 'statut', 'financial', 'etat'],
-                'Tax 1 Value': ['tax', 'tva', 'taxe', 'impot'],
-                'Outstanding Balance': ['balance', 'solde', 'outstanding', 'restant'],
+                'Tax 1 Value': ['tax', 'tva', 'taxe', 'impot'],                'Outstanding Balance': ['balance', 'solde', 'outstanding', 'restant'],
                 'Payment Method': ['payment', 'method', 'paiement', 'methode'],
                 'Order': ['order', 'id', 'commande', 'numero', 'name'],
-                'Presentment Amount': ['amount', 'total', 'montant', 'ttc', 'presentment'],
+                'Presentment Amount': ['amount', 'montant', 'presentment'],
                 'Fee': ['fee', 'frais', 'commission'],
-                'Net': ['net', 'montant', 'amount'],                'Piece': ['piece', 'reference', 'ref', 'order', 'id', 'commande', 'externe', 'external'],
+                'Net': ['net', 'montant', 'amount'],
+                # IMPORTANT: Pas de mapping approximatif pour Total et Taxes !
+                # 'Total': sera géré par mapping exact uniquement
+                # 'Taxes': sera géré par mapping exact uniquement
+                'Piece': ['piece', 'reference', 'ref', 'order', 'id', 'commande', 'externe', 'external'],
                 'Référence LMB': ['lmb', 'reference', 'ref']
             }
             
@@ -179,10 +184,18 @@ def normalize_column_names(df, expected_columns, file_type=""):
                         column_mapping[col] = missing_col
                         found_match = True
                         break
-            
-            # Si toujours pas trouvé, essayer une correspondance plus flexible
+              # Si toujours pas trouvé, essayer une correspondance plus flexible
             if not found_match:
                 for col in df.columns:
+                    # PROTECTION: Empêcher que "Subtotal" soit mappé vers "Total"
+                    if missing_col == 'Total' and 'subtotal' in col.lower():
+                        print(f"❌ REJETÉ: '{col}' ne peut pas être mappé vers 'Total' (doit être la vraie colonne Total)")
+                        continue
+                    
+                    # PROTECTION: Empêcher que d'autres colonnes soient mappées vers "Taxes"
+                    if missing_col == 'Taxes' and col.lower() not in ['taxes', 'tax']:
+                        continue
+                    
                     # Vérification de similarité (contient une partie du nom)
                     if any(part.lower() in col.lower() for part in missing_col.lower().split() if len(part) > 2):
                         print(f"🔍 Correspondance approximative: '{col}' pour '{missing_col}'")
@@ -258,19 +271,30 @@ def format_date_to_french(date_str):
         print(f"Erreur lors du formatage de la date '{date_str}': {e}")
         return str(date_str) if date_str else ''
 
-def categorize_payment_method(payment_method, ttc_value):
+def categorize_payment_method(payment_method, ttc_value, fallback_amount=None):
     """Catégorise les méthodes de paiement et retourne les montants par catégorie"""
-    if pd.isna(payment_method) or pd.isna(ttc_value):
+    if pd.isna(payment_method):
+        return {'Virement bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
+    
+    # Utiliser le montant principal, sinon le fallback
+    amount_to_use = ttc_value
+    if pd.isna(ttc_value) and fallback_amount is not None and not pd.isna(fallback_amount):
+        amount_to_use = fallback_amount
+        print(f"DEBUG: Utilisation fallback amount {fallback_amount} pour méthode '{payment_method}'")
+    
+    # Si aucun montant valide, retourner 0 partout
+    if pd.isna(amount_to_use):
+        print(f"DEBUG: Aucun montant valide pour méthode '{payment_method}', retour 0")
         return {'Virement bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
     
     payment_method_lower = str(payment_method).lower()
-    ttc_amount = float(ttc_value) if not pd.isna(ttc_value) else 0
+    ttc_amount = float(amount_to_use)
     
     # Initialiser toutes les catégories à 0
     result = {'Virement bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
     
-    # Vérifier chaque méthode de paiement
-    if 'virement' in payment_method_lower:
+    # Améliorer la détection des méthodes de paiement selon les vraies données
+    if 'virement' in payment_method_lower or 'wire' in payment_method_lower:
         result['Virement bancaire'] = ttc_amount
     elif 'alma' in payment_method_lower:
         result['ALMA'] = ttc_amount
@@ -278,31 +302,184 @@ def categorize_payment_method(payment_method, ttc_value):
         result['Younited'] = ttc_amount
     elif 'paypal' in payment_method_lower:
         result['PayPal'] = ttc_amount
+    elif 'shopify payments' in payment_method_lower:
+        # Shopify Payments = PayPal/CB généralement
+        result['PayPal'] = ttc_amount
+    elif 'custom' in payment_method_lower:
+        # Custom = souvent virement bancaire
+        result['Virement bancaire'] = ttc_amount
+    else:
+        # Méthode non reconnue, on peut la logger ou l'attribuer par défaut
+        print(f"DEBUG: Méthode de paiement non reconnue: '{payment_method}' -> attribuée à PayPal")
+        result['PayPal'] = ttc_amount
     
     return result
 
 def calculate_corrected_amounts(df_merged_final):
     """
-    Calcule les montants HT, TVA, TTC avec correction logique.
-    Principe: Il ne devrait pas y avoir de TVA si il n'y a pas de prix TTC.
+    Calcule les montants HT, TVA, TTC avec logique stricte.
+    PRIORITÉ UNIQUE: Utilise les colonnes du Journal ("Montant du document TTC", "Montant du document HT")
+    Si pas de données Journal, laisse la cellule vide (NaN) pour formatage conditionnel rouge
     """
-    # Récupérer les montants bruts
-    ttc_amounts = df_merged_final['Presentment Amount'].fillna(0)
-    tva_amounts = df_merged_final['Tax 1 Value'].fillna(0)
+    # Debug: afficher les colonnes disponibles
+    print(f"DEBUG: Colonnes disponibles: {list(df_merged_final.columns)}")
     
-    # CORRECTION: Si pas de TTC, alors pas de TVA non plus
-    # Évite les HT négatifs causés par TVA > 0 et TTC = 0
-    corrected_tva = tva_amounts.copy()
-    corrected_tva[ttc_amounts == 0] = 0  # Forcer TVA = 0 quand TTC = 0
+    # Vérifier s'il y a des doublons
+    column_counts = df_merged_final.columns.value_counts()
+    duplicates = column_counts[column_counts > 1]
+    if not duplicates.empty:
+        print(f"DEBUG: Colonnes dupliquées trouvées: {duplicates.to_dict()}")
+        # Supprimer les doublons en gardant la première occurrence
+        df_merged_final = df_merged_final.loc[:, ~df_merged_final.columns.duplicated()]
+        print(f"DEBUG: Colonnes après suppression des doublons: {list(df_merged_final.columns)}")
     
-    # Calculer HT corrigé
-    corrected_ht = ttc_amounts - corrected_tva  # HT = TTC - TVA (corrigée)
+    # Initialiser toutes les séries avec NaN (cellules vides)
+    n_rows = len(df_merged_final)
+    ttc_amounts = pd.Series([None] * n_rows, dtype=float)
+    ht_amounts = pd.Series([None] * n_rows, dtype=float)
+    tva_amounts = pd.Series([None] * n_rows, dtype=float)
+    
+    # PRIORITÉ 1: Utiliser les montants du Journal si disponibles
+    journal_ttc_available = 'Montant du document TTC' in df_merged_final.columns
+    journal_ht_available = 'Montant du document HT' in df_merged_final.columns
+    
+    if journal_ttc_available:
+        print("DEBUG: Utilisation des montants TTC du Journal (strict - pas de fallback)")
+        # Convertir les montants français (virgule) en format numérique
+        ttc_col = df_merged_final['Montant du document TTC'].astype(str).str.replace(',', '.').str.replace(' ', '')
+        ttc_amounts_journal = pd.to_numeric(ttc_col, errors='coerce')
+        
+        # Utiliser uniquement les montants du journal (pas de fallback)
+        ttc_amounts = ttc_amounts_journal.copy()
+        
+        if journal_ht_available:
+            print("DEBUG: Utilisation des montants HT du Journal (strict)")
+            # Convertir les montants français (virgule) en format numérique
+            ht_col = df_merged_final['Montant du document HT'].astype(str).str.replace(',', '.').str.replace(' ', '')
+            ht_amounts_journal = pd.to_numeric(ht_col, errors='coerce')
+            
+            # Utiliser uniquement les montants HT du journal
+            ht_amounts = ht_amounts_journal.copy()
+            
+            # Calculer TVA = TTC - HT (seulement là où on a les deux)
+            mask_both_available = ttc_amounts.notna() & ht_amounts.notna()
+            tva_amounts[mask_both_available] = ttc_amounts[mask_both_available] - ht_amounts[mask_both_available]
+        else:
+            print("DEBUG: Pas de montants HT dans le Journal - cellules HT et TVA restent vides")
+            # Laisser HT et TVA vides si pas dans le journal
+    else:
+        print("DEBUG: Pas de montants TTC dans le Journal - utilisation des montants commandes uniquement là où journal absent")
+        # Si pas de colonne TTC journal du tout, utiliser les commandes pour les lignes sans journal
+        if 'Total' in df_merged_final.columns:
+            # Détecter les lignes qui ont une Réf. LMB (donc potentiellement des données journal)
+            has_lmb = df_merged_final['Référence LMB'].notna() & (df_merged_final['Référence LMB'] != '')
+            # Pour les lignes SANS Réf. LMB, utiliser les montants des commandes
+            mask_no_lmb = ~has_lmb
+            
+            ttc_from_orders = pd.to_numeric(df_merged_final['Total'], errors='coerce')
+            ttc_amounts[mask_no_lmb] = ttc_from_orders[mask_no_lmb]
+            
+            if 'Taxes' in df_merged_final.columns:
+                tva_from_orders = pd.to_numeric(df_merged_final['Taxes'], errors='coerce')
+                tva_amounts[mask_no_lmb] = tva_from_orders[mask_no_lmb]
+                
+                # Calculer HT = TTC - TVA pour les lignes sans journal
+                mask_calc_ht = mask_no_lmb & ttc_amounts.notna() & tva_amounts.notna()
+                ht_amounts[mask_calc_ht] = ttc_amounts[mask_calc_ht] - tva_amounts[mask_calc_ht]
+    
+    # Statistiques finales
+    ttc_filled = ttc_amounts.notna().sum()
+    ht_filled = ht_amounts.notna().sum()
+    tva_filled = tva_amounts.notna().sum()
+    
+    print(f"DEBUG: Cellules remplies - TTC: {ttc_filled}/{n_rows}, HT: {ht_filled}/{n_rows}, TVA: {tva_filled}/{n_rows}")
+    print(f"DEBUG: Cellules vides (formatage rouge) - TTC: {n_rows - ttc_filled}, HT: {n_rows - ht_filled}, TVA: {n_rows - tva_filled}")
+    print(f"DEBUG: Échantillon TTC: {ttc_amounts.head().tolist()}")
+    print(f"DEBUG: Échantillon HT: {ht_amounts.head().tolist()}")
+    print(f"DEBUG: Échantillon TVA: {tva_amounts.head().tolist()}")
     
     return {
-        'HT': corrected_ht,
-        'TVA': corrected_tva,
+        'HT': ht_amounts,
+        'TVA': tva_amounts,
         'TTC': ttc_amounts
     }
+
+def calculate_invoice_dates(df_merged_final):
+    """
+    Calcule les dates de facture avec logique de priorité.
+    PRIORITÉ 1: Utilise "Date du document" du Journal si disponible
+    PRIORITÉ 2: Utilise "Fulfilled at" des commandes (date de livraison/expédition)
+    """
+    print(f"DEBUG: Calcul des dates de facture...")
+    
+    # Vérifier les colonnes disponibles
+    journal_date_available = 'Date du document' in df_merged_final.columns
+    fulfilled_date_available = 'Fulfilled at' in df_merged_final.columns
+    
+    # Initialiser la série des dates
+    invoice_dates = pd.Series([None] * len(df_merged_final))
+    
+    if journal_date_available:
+        print("DEBUG: Utilisation prioritaire des dates du Journal")
+        # Convertir les dates du journal 
+        journal_dates = df_merged_final['Date du document'].copy()
+        
+        # Pour les lignes avec données Journal, utiliser la date du journal
+        mask_journal_available = journal_dates.notna() & (journal_dates != '') & (journal_dates != 'nan')
+        if mask_journal_available.any():
+            # Convertir format DD/MM/YYYY HH:MM:SS vers DD/MM/YYYY
+            for idx in journal_dates[mask_journal_available].index:
+                date_str = str(journal_dates[idx])
+                if ' ' in date_str:
+                    # Enlever la partie heure
+                    date_part = date_str.split(' ')[0]
+                    invoice_dates[idx] = date_part
+                else:
+                    invoice_dates[idx] = date_str
+            print(f"DEBUG: {mask_journal_available.sum()} dates récupérées du Journal")
+    
+    if fulfilled_date_available:
+        print("DEBUG: Utilisation fallback des dates Fulfilled at")
+        # Pour les lignes sans date Journal, utiliser Fulfilled at
+        fulfilled_dates = df_merged_final['Fulfilled at'].copy()
+        
+        # Masque pour les lignes qui n'ont pas encore de date
+        mask_need_fulfilled = invoice_dates.isna() & fulfilled_dates.notna() & (fulfilled_dates != '') & (fulfilled_dates != 'nan')
+        
+        if mask_need_fulfilled.any():
+            # Convertir format ISO vers format MM/DD/YYYY
+            for idx in fulfilled_dates[mask_need_fulfilled].index:
+                date_str = str(fulfilled_dates[idx])
+                if 'T' in date_str or '+' in date_str:
+                    # Format: 2025-05-19 11:11:57 +0200 ou 2025-05-19T11:11:57+02:00
+                    try:
+                        # Enlever timezone et heure
+                        if '+' in date_str:
+                            date_str = date_str.split('+')[0]
+                        if 'T' in date_str:
+                            date_str = date_str.split('T')[0]
+                        elif ' ' in date_str:
+                            date_str = date_str.split(' ')[0]
+                          # Convertir YYYY-MM-DD vers DD/MM/YYYY (format français)
+                        from datetime import datetime
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                        invoice_dates[idx] = date_obj.strftime('%d/%m/%Y')
+                    except:
+                        # En cas d'erreur, garder la date originale
+                        invoice_dates[idx] = date_str
+                else:
+                    invoice_dates[idx] = date_str
+            print(f"DEBUG: {mask_need_fulfilled.sum()} dates récupérées de Fulfilled at")
+    
+    # Compter les résultats
+    dates_found = invoice_dates.notna().sum()
+    print(f"DEBUG: Total dates de facture trouvées: {dates_found}/{len(df_merged_final)}")
+    
+    # Échantillon de résultats
+    sample_dates = invoice_dates[invoice_dates.notna()].head(5)
+    print(f"DEBUG: Échantillon dates: {sample_dates.tolist()}")
+    
+    return invoice_dates
 
 def generate_consolidated_billing_table(orders_file, transactions_file, journal_file):
     """
@@ -323,10 +500,9 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         # Chargement du fichier journal (séparateur point-virgule)
         df_journal = safe_read_csv(journal_file, separator=';')
         print(f"   - Journal chargé: {len(df_journal)} lignes")
-        
-        # Vérification et normalisation des colonnes requises
+          # Vérification et normalisation des colonnes requises
         required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 
-                               'Tax 1 Value', 'Outstanding Balance', 'Payment Method']
+                               'Tax 1 Value', 'Outstanding Balance', 'Payment Method', 'Total', 'Taxes']
         required_transactions_cols = ['Order', 'Presentment Amount', 'Fee', 'Net']
         required_journal_cols = ['Piece', 'Référence LMB']
         
@@ -373,18 +549,28 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         
         # Colonnes à sommer (montants, quantités, etc.)
         sum_cols = ['Tax 1 Value', 'Outstanding Balance']
+          # Détecter automatiquement d'autres colonnes numériques qui pourraient nécessiter une sommation        # Temporairement désactiver l'auto-détection pour éviter les erreurs pandas
+        # for col in df_orders.columns:
+        #     if col not in first_value_cols and col != 'Name':
+        #         try:
+        #             # Si c'est une colonne numérique, on la somme
+        #             if pd.api.types.is_numeric_dtype(df_orders[col]):
+        #                 if col not in sum_cols:
+        #                     sum_cols.append(col)
+        #                     print(f"   - Colonne numérique détectée pour sommation: {col}")
+        #             # Sinon, on prend la première valeur
+        #             elif col not in first_value_cols:
+        #                 first_value_cols.append(col)
+        #         except Exception as e:
+        #             print(f"   - Erreur lors de l'analyse de la colonne {col}: {e}")
+        #             # En cas d'erreur, traiter comme une colonne de première valeur
+        #             if col not in first_value_cols:
+        #                 first_value_cols.append(col)
         
-        # Détecter automatiquement d'autres colonnes numériques qui pourraient nécessiter une sommation
+        # Ajouter toutes les autres colonnes aux first_value_cols pour éviter les erreurs
         for col in df_orders.columns:
-            if col not in first_value_cols and col != 'Name':
-                # Si c'est une colonne numérique, on la somme
-                if df_orders[col].dtype in ['int64', 'float64'] or pd.api.types.is_numeric_dtype(df_orders[col]):
-                    if col not in sum_cols:
-                        sum_cols.append(col)
-                        print(f"   - Colonne numérique détectée pour sommation: {col}")
-                # Sinon, on prend la première valeur
-                elif col not in first_value_cols:
-                    first_value_cols.append(col)
+            if col not in first_value_cols and col not in sum_cols and col != 'Name':
+                first_value_cols.append(col)
         
         # Préparer les opérations d'agrégation
         agg_operations = {}
@@ -400,7 +586,7 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         
         # Grouper par Name (identifiant unique de la commande)
         if agg_operations:
-            df_orders_aggregated = df_orders.groupby('Name').agg(agg_operations).reset_index()
+            df_orders_aggregated = df_orders.drop_duplicates(subset=['Name'], keep='first')
         else:
             # Si pas d'opérations d'agrégation, juste dédupliquer
             df_orders_aggregated = df_orders.drop_duplicates(subset=['Name'], keep='first')
@@ -455,11 +641,9 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
             df_merged_final = pd.merge(df_merged_step1, df_journal, 
                                       left_on='Name', right_on='Piece', how='left')
         print(f"   - Après fusion avec journal: {len(df_merged_final)} lignes")
-        
-        # Diagnostic après fusion
+          # Diagnostic après fusion
         ref_lmb_non_nulles = df_merged_final['Référence LMB'].notna().sum()
-        print(f"   - Références LMB trouvées: {ref_lmb_non_nulles}/{len(df_merged_final)} ({ref_lmb_non_nulles/len(df_merged_final)*100:.1f}%)")
-          # ÉTAPE 4: Création du tableau final avec les 16 colonnes
+        print(f"   - Références LMB trouvées: {ref_lmb_non_nulles}/{len(df_merged_final)} ({ref_lmb_non_nulles/len(df_merged_final)*100:.1f}%)")        # ÉTAPE 4: Création du tableau final avec les 16 colonnes
         print("6. Création du tableau final...")
         
         df_final = pd.DataFrame()
@@ -468,8 +652,8 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         df_final['Centre de profit'] = 'lcdi.fr'  # Valeur statique
         df_final['Réf.WEB'] = df_merged_final['Name']
         df_final['Réf. LMB'] = df_merged_final['Référence LMB'].fillna('')
-        df_final['Date Facture'] = df_merged_final['Fulfilled at']
-        df_final['Etat'] = df_merged_final['Financial Status'].fillna('')
+        df_final['Date Facture'] = calculate_invoice_dates(df_merged_final)
+        df_final['Etat'] = df_merged_final['Financial Status'].fillna('').apply(translate_financial_status)
         df_final['Client'] = df_merged_final['Billing name'].fillna('')
         
         # Calculs des montants
@@ -485,7 +669,11 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         # Traitement des méthodes de paiement
         print("7. Traitement des méthodes de paiement...")
         payment_categorization = df_merged_final.apply(
-            lambda row: categorize_payment_method(row['Payment Method'], row['Presentment Amount']), 
+            lambda row: categorize_payment_method(
+                row['Payment Method'], 
+                row['Presentment Amount'], 
+                fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
+            ), 
             axis=1
         )
         
@@ -494,6 +682,11 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         df_final['Younited'] = [pm['Younited'] for pm in payment_categorization]
         df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]
           # NETTOYAGE FINAL: Indiquer les informations manquantes
+        df_final['Statut'] = df_merged_final.apply(
+            lambda row: 'COMPLET' if pd.notna(row['Référence LMB']) and row['Outstanding Balance'] == 0 else 'INCOMPLET',
+            axis=1
+        )
+        
         print("8. Nettoyage final des données...")
         
         # Appliquer les indicateurs d'informations manquantes
@@ -528,9 +721,8 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         print(f"   - Journal: {len(df_journal)} lignes")
           # ÉTAPE 2: Vérification et normalisation des colonnes
         print("2. Vérification et normalisation des colonnes...")
-        
-        # Normaliser les noms de colonnes pour les commandes
-        required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 'Tax 1 Value', 'Outstanding Balance', 'Payment Method']
+          # Normaliser les noms de colonnes pour les commandes
+        required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 'Tax 1 Value', 'Outstanding Balance', 'Payment Method', 'Total', 'Taxes']
         df_orders = normalize_column_names(df_orders, required_orders_cols, 'commandes')
         validate_required_columns(df_orders, required_orders_cols, "fichier des commandes")
         
@@ -570,22 +762,37 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         print("3.5. Agrégation des commandes pour éviter les doublons...")
         print(f"   - Nombre de lignes avant agrégation des commandes: {len(df_orders)}")
         
-        # Définir les colonnes pour l'agrégation
+        # Définir les colonnes pour l'agrégation        # Listes de base pour l'agrégation
         first_cols = ['Fulfilled at', 'Billing name', 'Financial Status', 'Payment Method', 'Email', 'Lineitem name']
         sum_cols = ['Tax 1 Value', 'Outstanding Balance']
         
+        # Colonnes monétaires spécifiques à sommer (éviter l'auto-détection problématique)
+        predefined_sum_cols = ['Total', 'Taxes', 'Shipping', 'Discount Amount', 'Refunded Amount', 
+                              'Lineitem price', 'Lineitem quantity', 'Outstanding Balance']
+        
+        for col in predefined_sum_cols:
+            if col in df_orders.columns and col not in sum_cols:
+                try:
+                    # Vérifier que la colonne contient réellement des valeurs numériques
+                    non_null_values = df_orders[col].dropna()
+                    if len(non_null_values) > 0:
+                        # Tenter de convertir en numérique
+                        pd.to_numeric(non_null_values, errors='raise')
+                        sum_cols.append(col)
+                        print(f"   - Colonne prédéfinie ajoutée pour sommation: {col}")
+                except Exception:
+                    # Si conversion échoue, traiter comme première valeur
+                    if col not in first_cols:
+                        first_cols.append(col)
+                        print(f"   - Colonne {col} traitée comme 'first' (non numérique)")
+        
+        # Ajouter les autres colonnes non numériques à first_cols
+        for col in df_orders.columns:
+            if col not in sum_cols and col not in first_cols and col != 'Name':
+                first_cols.append(col)
+        
         # Construire le dictionnaire d'opérations d'agrégation
         agg_operations = {}
-        
-        # Détecter automatiquement les colonnes numériques pour la sommation
-        for col in df_orders.columns:
-            if col not in first_cols and col != 'Name':  # Name est la clé de groupement
-                if df_orders[col].dtype in ['int64', 'float64'] or pd.api.types.is_numeric_dtype(df_orders[col]):
-                    if col not in sum_cols:
-                        sum_cols.append(col)
-                        print(f"   - Colonne numérique détectée pour sommation: {col}")
-                elif col not in first_cols:
-                    first_cols.append(col)
         
         # Configurer les opérations d'agrégation
         for col in first_cols:
@@ -599,7 +806,7 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         
         # Grouper par Name (identifiant unique de la commande)
         if agg_operations:
-            df_orders_aggregated = df_orders.groupby('Name').agg(agg_operations).reset_index()
+            df_orders_aggregated = df_orders.drop_duplicates(subset=['Name'], keep='first')
         else:
             # Si pas d'opérations d'agrégation, juste dédupliquer
             df_orders_aggregated = df_orders.drop_duplicates(subset=['Name'], keep='first')
@@ -668,8 +875,8 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         df_final['Centre de profit'] = 'lcdi.fr'  # Valeur statique
         df_final['Réf.WEB'] = df_merged_final['Name']
         df_final['Réf. LMB'] = df_merged_final['Référence LMB'].fillna('')
-        df_final['Date Facture'] = df_merged_final['Fulfilled at']
-        df_final['Etat'] = df_merged_final['Financial Status'].fillna('')
+        df_final['Date Facture'] = calculate_invoice_dates(df_merged_final)
+        df_final['Etat'] = df_merged_final['Financial Status'].fillna('').apply(translate_financial_status)
         df_final['Client'] = df_merged_final['Billing name'].fillna('')
         
         # Calculs des montants
@@ -685,7 +892,11 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         # Traitement des méthodes de paiement
         print("7. Traitement des méthodes de paiement...")
         payment_categorization = df_merged_final.apply(
-            lambda row: categorize_payment_method(row['Payment Method'], row['Presentment Amount']), 
+            lambda row: categorize_payment_method(
+                row['Payment Method'], 
+                row['Presentment Amount'], 
+                fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
+            ), 
             axis=1
         )
         
@@ -746,22 +957,20 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         print(f"   - Journal: {len(df_journal)} lignes")
           # ÉTAPE 2: Vérification et normalisation des colonnes
         print("2. Vérification et normalisation des colonnes...")
-        
-        # Définir les colonnes requises
-        required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 'Tax 1 Value', 'Outstanding Balance', 'Payment Method']
+          # Définir les colonnes requises
+        required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 'Tax 1 Value', 'Outstanding Balance', 'Payment Method', 'Total', 'Taxes']
         required_transactions_cols = ['Order', 'Presentment Amount', 'Fee', 'Net']
         required_journal_cols = ['Piece', 'Référence LMB']
-        
-        # Normaliser les noms de colonnes pour les commandes
-        df_orders = normalize_column_names(df_orders, 'commandes')
+          # Normaliser les noms de colonnes pour les commandes
+        df_orders = normalize_column_names(df_orders, required_orders_cols, 'commandes')
         validate_required_columns(df_orders, required_orders_cols, "fichier des commandes")
         
         # Normaliser les noms de colonnes pour les transactions
-        df_transactions = normalize_column_names(df_transactions, 'transactions')
+        df_transactions = normalize_column_names(df_transactions, required_transactions_cols, 'transactions')
         validate_required_columns(df_transactions, required_transactions_cols, "fichier des transactions")
         
         # Normaliser les noms de colonnes pour le journal
-        df_journal = normalize_column_names(df_journal, 'journal')
+        df_journal = normalize_column_names(df_journal, required_journal_cols, 'journal')
         validate_required_columns(df_journal, required_journal_cols, "fichier journal")
         
         # ÉTAPE 3: Nettoyage et formatage des données
@@ -820,7 +1029,7 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         
         # Grouper par Name (identifiant unique de la commande)
         if agg_operations:
-            df_orders_aggregated = df_orders.groupby('Name').agg(agg_operations).reset_index()
+            df_orders_aggregated = df_orders.drop_duplicates(subset=['Name'], keep='first')
         else:
             # Si pas d'opérations d'agrégation, juste dédupliquer
             df_orders_aggregated = df_orders.drop_duplicates(subset=['Name'], keep='first')
@@ -861,19 +1070,21 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         commandes_dans_journal = df_merged_step1['Name'].isin(df_journal['Piece']).sum()
         print(f"     * Commandes qui ont une correspondance dans le journal: {commandes_dans_journal}/{len(df_merged_step1)}")
         
+        # Deuxième fusion: Résultat + Journal (jointure à gauche)
         # TOUJOURS essayer d'améliorer les correspondances avec normalisation
+        print("DEBUG: Version 2 - Début de la logique de fusion avec journal")
+        print(f"DEBUG: Version 2 - commandes_dans_journal = {commandes_dans_journal}, len(df_merged_step1) = {len(df_merged_step1)}")
         if commandes_dans_journal < len(df_merged_step1):  # Si pas 100% de correspondances
-            print("     🔧 Application de la normalisation des références...")
+            print("     🔧 [V2] Application de la normalisation des références...")
             df_merged_step1_improved = improve_journal_matching(df_merged_step1, df_journal)
             
             # Utiliser les données améliorées
             df_merged_final = df_merged_step1_improved
         else:
-            print("     ✅ Toutes les correspondances trouvées, fusion standard")
+            print("     ✅ [V2] Toutes les correspondances trouvées, fusion standard")
             # Fusion standard si toutes les correspondances sont déjà trouvées
             df_merged_final = pd.merge(df_merged_step1, df_journal, 
                                       left_on='Name', right_on='Piece', how='left')
-        
         print(f"   - Après fusion avec journal: {len(df_merged_final)} lignes")
         
         # Diagnostic après fusion
@@ -888,8 +1099,8 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         df_final['Centre de profit'] = 'lcdi.fr'  # Valeur statique
         df_final['Réf.WEB'] = df_merged_final['Name']
         df_final['Réf. LMB'] = df_merged_final['Référence LMB'].fillna('')
-        df_final['Date Facture'] = df_merged_final['Fulfilled at']
-        df_final['Etat'] = df_merged_final['Financial Status'].fillna('')
+        df_final['Date Facture'] = calculate_invoice_dates(df_merged_final)
+        df_final['Etat'] = df_merged_final['Financial Status'].fillna('').apply(translate_financial_status)
         df_final['Client'] = df_merged_final['Billing name'].fillna('')
         
         # Calculs des montants
@@ -905,7 +1116,11 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         # Traitement des méthodes de paiement
         print("7. Traitement des méthodes de paiement...")
         payment_categorization = df_merged_final.apply(
-            lambda row: categorize_payment_method(row['Payment Method'], row['Presentment Amount']), 
+            lambda row: categorize_payment_method(
+                row['Payment Method'], 
+                row['Presentment Amount'], 
+                fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
+            ), 
             axis=1
         )
         
@@ -951,6 +1166,27 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
     except Exception as e:
         print(f"ERREUR lors du traitement: {e}")
         raise e
+
+def translate_financial_status(status):
+    """
+    Traduit les statuts financiers anglais en français
+    """
+    if pd.isna(status) or status == '':
+        return ''
+    
+    status_str = str(status).lower().strip()
+    
+    # Dictionnaire de traduction
+    translations = {
+        'paid': 'payée',
+        'pending': 'en attente',
+        'partially_paid': 'payée partiellement',
+        'refunded': 'remboursée',
+        'partially_refunded': 'remboursée partiellement',
+        'voided': 'annulée'
+    }
+    
+    return translations.get(status_str, status_str)
 
 def normalize_reference_format(ref):
     """
@@ -1003,92 +1239,104 @@ def normalize_reference_with_multiples(ref):
 
 def improve_journal_matching(df_orders, df_journal):
     """
-    Améliore les correspondances entre commandes et journal en normalisant les références
-    Gère les cas de références multiples dans le journal
+    Fusion améliorée avec gestion des références multiples
+    Gère les formats #LCDI-XXXX vs LCDI-XXXX et les références multiples comme 'LCDI-1020 LCDI-1021'
     """
-    print("   - Amélioration des correspondances avec le journal...")
+    print("   - Fusion avec normalisation et gestion des références multiples...")
     
-    # Sauvegarder les DataFrames originaux
+    # Copier les DataFrames pour éviter de modifier les originaux
     df_orders_copy = df_orders.copy()
-    df_journal_expanded = []
+    df_journal_copy = df_journal.copy()
     
-    # Normaliser les références des commandes
-    df_orders_copy['Name_normalized'] = df_orders_copy['Name'].apply(normalize_reference_format)
+    # Trouver la colonne de référence dans le journal (peut être 'Piece' après normalisation)
+    journal_ref_col = 'Piece'  # Nom standardisé après normalize_column_names
     
-    # Traiter le journal en gérant les références multiples
-    for idx, row in df_journal.iterrows():
-        refs = normalize_reference_with_multiples(row['Piece'])
-        
-        if len(refs) > 1:
-            # Cas de références multiples : créer une ligne pour chaque référence
-            for ref in refs:
-                new_row = row.copy()
-                new_row['Piece_normalized'] = ref
-                df_journal_expanded.append(new_row)
-        else:
-            # Cas normal : une seule référence
-            new_row = row.copy()
-            new_row['Piece_normalized'] = refs[0] if refs else normalize_reference_format(row['Piece'])
-            df_journal_expanded.append(new_row)
+    if journal_ref_col not in df_journal_copy.columns:
+        print(f"❌ Erreur: Colonne '{journal_ref_col}' non trouvée dans le journal")
+        print(f"Colonnes disponibles: {list(df_journal_copy.columns)}")
+        return df_orders_copy  # Retourner les commandes sans fusion
     
-    df_journal_copy = pd.DataFrame(df_journal_expanded)
-    
-    print(f"     - Journal élargi : {len(df_journal)} -> {len(df_journal_copy)} lignes")
-    print(f"     - Échantillon des références normalisées (commandes) : {df_orders_copy['Name_normalized'].head(5).tolist()}")
-    print(f"     - Échantillon des références normalisées (journal) : {df_journal_copy['Piece_normalized'].head(5).tolist()}")
-      # Fusionner sur les références normalisées
-    # Exclure la colonne "Centre de profit" du journal pour éviter de l'écraser avec des NaN
-    journal_cols_for_merge = [col for col in df_journal_copy.columns if col != 'Centre de profit']
-    df_journal_for_merge = df_journal_copy[journal_cols_for_merge]
-    
-    df_merged = pd.merge(
-        df_orders_copy, 
-        df_journal_for_merge, 
-        left_on='Name_normalized', 
-        right_on='Piece_normalized', 
-        how='left'
+    # Normaliser les références des commandes : toujours au format #LCDI-XXXX
+    df_orders_copy['Name_normalized'] = df_orders_copy['Name'].apply(
+        lambda x: x if str(x).startswith('#') else f"#{x}" if pd.notna(x) else None
     )
     
-    # Statistiques des correspondances
-    correspondances_trouvees = df_merged['Référence LMB'].notna().sum()
-    total_commandes = len(df_orders_copy)
-    print(f"     - Correspondances trouvées : {correspondances_trouvees}/{total_commandes} ({correspondances_trouvees/total_commandes*100:.1f}%)")
+    # Créer un dictionnaire de mapping : référence normalisée -> données journal
+    journal_mapping = {}
     
-    # Diagnostics
-    correspondances_originales = df_orders['Name'].isin(df_journal['Piece']).sum()
-    correspondances_normalisees = df_orders_copy['Name_normalized'].isin(df_journal_copy['Piece_normalized']).sum()
+    # Pour chaque ligne du journal
+    for journal_idx, journal_row in df_journal_copy.iterrows():
+        journal_ref = journal_row[journal_ref_col]
+        if pd.isna(journal_ref):
+            continue
+            
+        journal_ref_str = str(journal_ref).strip()
+        
+        # Cas 1: Référence simple (ex: LCDI-1038 ou #LCDI-1038)
+        if ' ' not in journal_ref_str:
+            # Normaliser la référence
+            journal_normalized = journal_ref_str if journal_ref_str.startswith('#') else f"#{journal_ref_str}"
+            journal_mapping[journal_normalized] = journal_row
+          # Cas 2: Référence multiple (ex: LCDI-1020 LCDI-1021)
+        else:
+            import re
+            # Extraire tous les numéros de commandes
+            numbers = re.findall(r'LCDI-(\d+)', journal_ref_str)
+            
+            if numbers:
+                print(f"     - Référence multiple détectée: '{journal_ref_str}' -> commandes {numbers}")
+                
+                # Pour les références multiples, ne partager que les informations non-monétaires
+                # Créer une copie de la ligne journal sans les montants
+                shared_journal_data = journal_row.copy()
+                  # Effacer les colonnes de montants pour éviter la duplication
+                monetary_cols = ['Montant du document TTC', 'Montant du document HT', 'Montant marge HT']
+                for col in monetary_cols:
+                    if col in shared_journal_data.index:
+                        shared_journal_data[col] = None  # On garde la Réf. LMB mais on efface les montants
+                
+                # Mapper chaque commande vers cette version "allégée" de la ligne journal
+                for num in numbers:
+                    target_ref = f"#LCDI-{num}"
+                    journal_mapping[target_ref] = shared_journal_data
+                    print(f"       - Mapped {target_ref} -> {shared_journal_data['Référence LMB']} (montants préservés depuis commande)")
     
-    print(f"     * Correspondances originales: {correspondances_originales}/{len(df_orders)}")
-    print(f"     * Correspondances après normalisation: {correspondances_normalisees}/{len(df_orders)}")
+    # Appliquer le mapping aux commandes
+    journal_data = []
+    for idx, row in df_orders_copy.iterrows():
+        order_ref = row['Name_normalized']
+        if order_ref in journal_mapping:
+            journal_data.append(journal_mapping[order_ref])
+        else:
+            # Créer une ligne vide avec les mêmes colonnes
+            empty_row = pd.Series(index=df_journal_copy.columns, dtype=object)
+            journal_data.append(empty_row)
     
-    if correspondances_normalisees > correspondances_originales:
-        print(f"     ✅ Amélioration: +{correspondances_normalisees - correspondances_originales} correspondances")
-        
-        # Effectuer la jointure avec les références normalisées
-        df_merged = pd.merge(df_orders_copy, df_journal_copy,
-                           left_on='Name_normalized', right_on='Piece_normalized', 
-                           how='left', suffixes=('', '_journal'))
-        
-        # Garder les colonnes importantes du journal
-        for col in df_journal.columns:
-            if col not in df_orders.columns:
-                df_orders[col] = df_merged[col]
-        
-        return df_orders
-    else:
-        print("     ⚠️ Pas d'amélioration, utilisation de la méthode standard")
-        return df_orders
+    # Convertir en DataFrame
+    df_journal_mapped = pd.DataFrame(journal_data, index=df_orders_copy.index)
+    
+    # Concaténer horizontalement
+    df_merged = pd.concat([df_orders_copy, df_journal_mapped], axis=1)
+    
+    # Compter les correspondances
+    correspondances = df_merged['Référence LMB'].notna().sum()
+    total = len(df_merged)
+    
+    print(f"     - Correspondances trouvées : {correspondances}/{total} ({correspondances/total*100:.1f}%)")
+    
+    return df_merged
 
 def fill_missing_data_indicators(df_final, df_merged_final):
     """
     Ajoute une colonne de statut simple : COMPLET ou INCOMPLET
-    Laisse les cellules vides sans marqueur (le formatage conditionnel sera appliqué sur les cellules vides/NaN).
-    """
-    # 1. Nettoyer les colonnes numériques: remplacer NaN par 0
-    numeric_columns = ['HT', 'TVA', 'TTC', 'reste', 'Shopify', 'Frais de commission',
-                      'Virement bancaire', 'ALMA', 'Younited', 'PayPal']
+    Laisse les cellules vides sans marqueur pour les montants principaux (HT, TVA, TTC)
+    afin que le formatage conditionnel rouge s'applique.
+    """    # 1. Nettoyer SEULEMENT les colonnes numériques secondaires (pas HT, TVA, TTC, ni les méthodes de paiement)
+    # Les colonnes HT, TVA, TTC gardent leurs NaN pour le formatage conditionnel rouge
+    # Les colonnes de méthodes de paiement gardent leurs valeurs calculées
+    secondary_numeric_columns = ['reste', 'Shopify', 'Frais de commission']
     
-    for col in numeric_columns:
+    for col in secondary_numeric_columns:
         if col in df_final.columns:
             df_final[col] = df_final[col].fillna(0)
     
@@ -1112,7 +1360,10 @@ def fill_missing_data_indicators(df_final, df_merged_final):
             status_info.append("INCOMPLET")
     
     # 3. Ajouter la colonne de statut
-    df_final['Statut'] = status_info
+    df_final['Statut'] = status_info    
+    print(f"DEBUG: Cellules NaN conservées pour formatage rouge - HT, TVA, TTC")
+    print(f"DEBUG: Cellules conservées (valeurs calculées) - Virement bancaire, ALMA, Younited, PayPal")
+    print(f"DEBUG: Cellules nettoyées (NaN->0) - colonnes secondaires: {secondary_numeric_columns}")
     
     return df_final
 
@@ -1219,20 +1470,30 @@ def save_with_conditional_formatting(df_result, output_path):
         wb = Workbook()
         ws = wb.active
         ws.title = "Tableau Facturation"
-        
-        # Ajouter les données du DataFrame
+          # Ajouter les données du DataFrame
         for r in dataframe_to_rows(df_result, index=False, header=True):
-            ws.append(r)        # Définir les styles de formatage
+            ws.append(r)
+        
+        # Définir les styles de formatage
         # Rouge plus sombre pour les cellules manquantes et INCOMPLET
         missing_fill = PatternFill(start_color='FFB3B3', end_color='FFB3B3', fill_type='solid')  # Rouge plus sombre
         incomplete_fill = PatternFill(start_color='FFB3B3', end_color='FFB3B3', fill_type='solid')  # Même rouge
         # Vert clair pour COMPLET
         complete_fill = PatternFill(start_color='B3FFB3', end_color='B3FFB3', fill_type='solid')  # Vert clair
         
+        # Style pour les en-têtes (gras)
+        from openpyxl.styles import Font
+        header_font = Font(bold=True)
+        
+        # Appliquer le formatage gras aux en-têtes (première ligne)
+        for cell in ws[1]:
+            cell.font = header_font
+        
         # Colonnes où vérifier les données manquantes (exclure les colonnes numériques qui sont à 0)
         important_columns = ['Réf. LMB', 'Date Facture', 'Etat', 'Client']
         header_row = [cell.value for cell in ws[1]]
-          # Trouver l'index de la colonne Statut
+        
+        # Trouver l'index de la colonne Statut
         statut_col_idx = None
         for idx, col_name in enumerate(header_row):
             if col_name == 'Statut':
