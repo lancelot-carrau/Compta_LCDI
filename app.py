@@ -9,7 +9,7 @@ import chardet
 import re
 
 app = Flask(__name__)
-app.secret_key = 'votre_cle_secrete_ici_changez_en_production'
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Configuration des dossiers
@@ -1953,8 +1953,13 @@ def download_file(filename):
         return redirect(url_for('index'))
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    
     print("=== DÉMARRAGE DE L'APPLICATION ===")
     print("Application de génération de tableau de facturation LCDI")
-    print("Accès: http://localhost:5000")
+    print(f"Port: {port}")
+    print(f"Mode debug: {debug_mode}")
     print("======================================")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)

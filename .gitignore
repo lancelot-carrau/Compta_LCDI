@@ -85,6 +85,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Deployment
+.env.local
+.env.production
+
 # Spyder project settings
 .spyderproject
 .spyproject
