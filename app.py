@@ -1504,10 +1504,12 @@ def fill_missing_data_indicators(df_final, df_merged_final):
 def combine_with_old_file(df_new_data, old_file_path):
     """
     Combine les nouvelles données avec un ancien fichier Excel/CSV
-    Évite les doublons basés sur la colonne 'Réf.WEB'
+    Gestion intelligente des conflits :
+    - Priorité aux données de l'ancien fichier
+    - Exception : nouvelles données utilisées si elles complètent des données manquantes
     """
     try:
-        print("=== DÉBUT COMBINAISON AVEC ANCIEN FICHIER ===")
+        print("=== DÉBUT COMBINAISON INTELLIGENTE AVEC ANCIEN FICHIER ===")
         
         # Charger l'ancien fichier
         if old_file_path.endswith('.xlsx'):
@@ -1520,60 +1522,106 @@ def combine_with_old_file(df_new_data, old_file_path):
         # Vérifier que la colonne Réf.WEB existe dans les deux fichiers
         if 'Réf.WEB' not in df_old.columns:
             print("ERREUR: La colonne 'Réf.WEB' n'existe pas dans l'ancien fichier")
-            return df_new_data  # Retourner seulement les nouvelles données
+            return df_new_data
         
         if 'Réf.WEB' not in df_new_data.columns:
             print("ERREUR: La colonne 'Réf.WEB' n'existe pas dans les nouvelles données")
-            return df_old  # Retourner seulement les anciennes données
+            return df_old
         
         print(f"Nouvelles données: {len(df_new_data)} lignes")
         print(f"Colonnes anciennes: {list(df_old.columns)}")
         print(f"Colonnes nouvelles: {list(df_new_data.columns)}")
         
-        # Identifier les doublons (même Réf.WEB)
+        # Identifier les références communes (potentiels conflits)
         old_refs = set(df_old['Réf.WEB'].dropna())
         new_refs = set(df_new_data['Réf.WEB'].dropna())
-        duplicates = old_refs.intersection(new_refs)
+        conflicting_refs = old_refs.intersection(new_refs)
         
-        print(f"Références déjà présentes (doublons évités): {len(duplicates)}")
-        if duplicates:
-            print(f"Exemples de doublons: {list(duplicates)[:5]}")
+        print(f"Références avec conflits potentiels: {len(conflicting_refs)}")
+        if conflicting_refs:
+            print(f"Exemples de conflits: {list(conflicting_refs)[:5]}")
         
-        # Filtrer les nouvelles données pour exclure les doublons
-        df_new_data_filtered = df_new_data[~df_new_data['Réf.WEB'].isin(duplicates)]
-        print(f"Nouvelles données après filtrage des doublons: {len(df_new_data_filtered)} lignes")
-        
-        # Harmoniser les colonnes (s'assurer que les deux DataFrame ont les mêmes colonnes)
+        # Harmoniser les colonnes d'abord
         old_columns = set(df_old.columns)
-        new_columns = set(df_new_data_filtered.columns)
+        new_columns = set(df_new_data.columns)
+        all_columns = old_columns.union(new_columns)
         
-        # Ajouter les colonnes manquantes avec des valeurs vides
+        # Ajouter les colonnes manquantes avec des valeurs vides/NaN
         for col in new_columns - old_columns:
-            df_old[col] = ''
+            df_old[col] = pd.NA
             print(f"Colonne '{col}' ajoutée à l'ancien fichier")
         
         for col in old_columns - new_columns:
-            df_new_data_filtered[col] = ''
+            df_new_data[col] = pd.NA
             print(f"Colonne '{col}' ajoutée aux nouvelles données")
         
-        # Réordonner les colonnes pour qu'elles correspondent
-        common_columns = sorted(old_columns.union(new_columns))
+        # Réordonner les colonnes
+        common_columns = sorted(all_columns)
         df_old = df_old[common_columns]
-        df_new_data_filtered = df_new_data_filtered[common_columns]
+        df_new_data = df_new_data[common_columns]
         
-        # Combiner les données
-        df_combined = pd.concat([df_old, df_new_data_filtered], ignore_index=True)
+        # Séparer les nouvelles données en deux groupes
+        df_new_unique = df_new_data[~df_new_data['Réf.WEB'].isin(conflicting_refs)].copy()
+        df_new_conflicts = df_new_data[df_new_data['Réf.WEB'].isin(conflicting_refs)].copy()
         
-        print(f"=== RÉSULTAT COMBINAISON ===")
+        print(f"Nouvelles données uniques (pas de conflit): {len(df_new_unique)} lignes")
+        print(f"Nouvelles données en conflit: {len(df_new_conflicts)} lignes")
+        
+        # Traiter les conflits avec priorité intelligente
+        conflicts_resolved = 0
+        data_completed = 0
+        
+        if len(df_new_conflicts) > 0:
+            print("=== RÉSOLUTION DES CONFLITS ===")
+            
+            for ref in conflicting_refs:
+                old_row = df_old[df_old['Réf.WEB'] == ref].iloc[0]
+                new_row = df_new_conflicts[df_new_conflicts['Réf.WEB'] == ref].iloc[0]
+                
+                # Analyser chaque colonne pour détecter les données manquantes
+                for col in common_columns:
+                    if col != 'Réf.WEB':  # Ne pas modifier la référence
+                        old_value = old_row[col]
+                        new_value = new_row[col]
+                          # Vérifier si l'ancienne valeur est manquante/vide
+                        old_is_empty = (pd.isna(old_value) or 
+                                      old_value == '' or 
+                                      old_value == 0 or 
+                                      str(old_value).strip() == '' or
+                                      str(old_value).lower() in ['nan', 'null', 'none', '<na>'])
+                        
+                        # Vérifier si la nouvelle valeur apporte des données
+                        new_has_data = (not pd.isna(new_value) and 
+                                      new_value != '' and 
+                                      new_value != 0 and 
+                                      str(new_value).strip() != '' and
+                                      str(new_value).lower() not in ['nan', 'null', 'none', '<na>'])
+                        
+                        # Si l'ancien est vide et le nouveau a des données, on complète
+                        if old_is_empty and new_has_data:
+                            df_old.loc[df_old['Réf.WEB'] == ref, col] = new_value
+                            data_completed += 1
+                            print(f"  ✓ {ref} - Colonne '{col}': Complété '{old_value}' → '{new_value}'")
+                        elif not old_is_empty and new_has_data and old_value != new_value:
+                            # Conflit réel : priorité à l'ancien fichier
+                            print(f"  → {ref} - Colonne '{col}': Ancien conservé '{old_value}' (nouveau: '{new_value}')")
+                            conflicts_resolved += 1
+                
+        # Combiner : ancien fichier (mis à jour) + nouvelles données uniques
+        df_combined = pd.concat([df_old, df_new_unique], ignore_index=True)
+        
+        print(f"=== RÉSULTAT COMBINAISON INTELLIGENTE ===")
         print(f"Total lignes combinées: {len(df_combined)}")
-        print(f"Anciennes données: {len(df_old)}")
-        print(f"Nouvelles données ajoutées: {len(df_new_data_filtered)}")
-        print(f"Doublons évités: {len(duplicates)}")
+        print(f"Anciennes données (conservées): {len(df_old)}")
+        print(f"Nouvelles données uniques ajoutées: {len(df_new_unique)}")
+        print(f"Conflits résolus (priorité ancien): {conflicts_resolved}")
+        print(f"Données complétées (ancien vide): {data_completed}")
+        print(f"Doublons évités: {len(conflicting_refs)}")
         
         return df_combined
         
     except Exception as e:
-        print(f"ERREUR lors de la combinaison: {e}")
+        print(f"ERREUR lors de la combinaison intelligente: {e}")
         print("Retour des nouvelles données uniquement")
         return df_new_data
 
@@ -1646,18 +1694,14 @@ def process_files():
                 temp_paths['old_file'] = old_file_path
                 
                 df_result = combine_with_old_file(df_new_data, old_file_path)
-                flash(f'Tableau combiné avec succès! {len(df_new_data)} nouvelles lignes ajoutées. Total: {len(df_result)} lignes.', 'success')
+                flash(f'Fichiers combinés avec succès! Fusion intelligente effectuée. Total: {len(df_result)} lignes.', 'success')
             else:
                 # Mode nouveau fichier
                 df_result = df_new_data
                 flash(f'Tableau généré avec succès! {len(df_result)} lignes traitées.', 'success')
-            
-            # Création du fichier de sortie avec timestamp au format DD_MM_YYYY
+              # Création du fichier de sortie avec timestamp au format DD_MM_YYYY
             timestamp = datetime.now().strftime('%d_%m_%Y')
-            if processing_mode == 'combine':
-                output_filename = f'Compta_LCDI_Shopify_COMBINE_{timestamp}.csv'
-            else:
-                output_filename = f'Compta_LCDI_Shopify_{timestamp}.csv'
+            output_filename = f'Compta_LCDI_Shopify_{timestamp}.csv'
             output_path = os.path.join(OUTPUT_FOLDER, output_filename)
               # Sauvegarde avec formatage conditionnel (Excel) ou CSV si pas possible
             final_path, is_excel = save_with_conditional_formatting(df_result, output_path)
