@@ -342,10 +342,8 @@
             <h1>📊 Générateur de Tableau de Facturation LCDI</h1>
             <p>Consolidation automatique des données Shopify</p>
             <p><strong>Version 2.0</strong> - Fusion intelligente avec détection de doublons</p>
-        </div>
-
-        <div class="files-section">
-            <form method="POST" action="{{ url_for('process_files') }}" enctype="multipart/form-data" id="uploadForm">
+        </div>        <div class="files-section">
+            <form method="POST" action="/process" enctype="multipart/form-data" id="uploadForm">
                 
                 <!-- Mode de traitement -->
                 <div class="form-section">

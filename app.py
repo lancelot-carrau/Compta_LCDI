@@ -7,10 +7,98 @@ from werkzeug.utils import secure_filename
 import io
 import chardet
 import re
+import logging
+import traceback
+import sys
+
+# Configuration du logging avec sortie console forcée
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Middleware pour logger TOUTES les requêtes
+@app.before_request
+def log_request_info():
+    print(f"\n{'='*60}")
+    print(f"NOUVELLE REQUÊTE REÇUE:")
+    print(f"Method: {request.method}")
+    print(f"URL: {request.url}")
+    print(f"Path: {request.path}")
+    print(f"Endpoint: {request.endpoint}")
+    print(f"Headers: {dict(request.headers)}")
+    print(f"Form data: {dict(request.form) if request.form else 'Aucune'}")
+    print(f"Files: {list(request.files.keys()) if request.files else 'Aucun'}")
+    print(f"Args: {dict(request.args) if request.args else 'Aucun'}")
+    print(f"{'='*60}\n")
+    
+    logger.info(f"REQUEST: {request.method} {request.path}")
+    logger.debug(f"Headers: {dict(request.headers)}")
+    logger.debug(f"Form: {dict(request.form) if request.form else 'Empty'}")
+    logger.debug(f"Files: {list(request.files.keys()) if request.files else 'Empty'}")
+
+@app.after_request
+def log_response_info(response):
+    print(f"\n{'='*60}")
+    print(f"RÉPONSE ENVOYÉE:")
+    print(f"Status: {response.status_code}")
+    print(f"Headers: {dict(response.headers)}")
+    print(f"{'='*60}\n")
+    
+    logger.info(f"RESPONSE: {response.status_code}")
+    return response
+
+# Gestionnaire d'erreurs global
+@app.errorhandler(Exception)
+def handle_exception(e):
+    logger.error(f"Exception non gérée: {str(e)}")
+    logger.error(f"Traceback complet: {traceback.format_exc()}")
+    flash(f"Erreur inattendue: {str(e)}", 'error')
+    return render_template('index.html'), 500
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    print(f"\n{'!'*80}")
+    print(f"ERREUR 405 METHOD NOT ALLOWED DÉTECTÉE!")
+    print(f"Method: {request.method}")
+    print(f"URL: {request.url}")
+    print(f"Path: {request.path}")
+    print(f"Endpoint: {request.endpoint}")
+    print(f"User-Agent: {request.headers.get('User-Agent', 'Unknown')}")
+    print(f"Referer: {request.headers.get('Referer', 'Unknown')}")
+    print(f"Content-Type: {request.headers.get('Content-Type', 'Unknown')}")
+    print(f"Headers complets: {dict(request.headers)}")
+    print(f"Form data: {dict(request.form) if request.form else 'Aucune'}")
+    print(f"Files: {list(request.files.keys()) if request.files else 'Aucun'}")
+    print(f"Args: {dict(request.args) if request.args else 'Aucun'}")
+    print(f"{'!'*80}\n")
+    
+    logger.error(f"Erreur 405 Method Not Allowed: {request.method} {request.url}")
+    logger.error(f"Headers: {dict(request.headers)}")
+    logger.error(f"Form data: {request.form}")
+    logger.error(f"Files: {request.files}")
+    
+    # Retourner une réponse JSON pour les requêtes AJAX
+    if request.headers.get('Content-Type') == 'application/json' or 'application/json' in request.headers.get('Accept', ''):
+        return {'error': 'Method not allowed', 'method': request.method, 'path': request.path}, 405
+    
+    flash("Méthode HTTP non autorisée pour cette route", 'error')
+    return render_template('index.html'), 405
+
+@app.errorhandler(413)
+def too_large(e):
+    logger.error(f"Fichier trop volumineux: {request.url}")
+    flash("Le fichier est trop volumineux (max 16MB)", 'error')
+    return render_template('index.html'), 413
 
 # Configuration des dossiers
 UPLOAD_FOLDER = 'uploads'
@@ -328,7 +416,7 @@ def categorize_payment_method(payment_method_orders, payment_method_transactions
         print(f"DEBUG: Virement bancaire détecté -> Virement bancaire: {ttc_amount}")    # PRIORITÉ 4: Paiements par carte bancaire
     elif ('shopify payments' in payment_orders_str or 'shopify payment' in payment_orders_str or
           'credit_card' in payment_orders_str or 'credit card' in payment_orders_str or
-          'carte' in payment_orders_str or 'card' in payment_transactions_str):
+          'carte' in payment_transactions_str or 'card' in payment_transactions_str):
         # Paiements par carte: vont dans la colonne "Carte bancaire"
         result['Carte bancaire'] = ttc_amount
         print(f"DEBUG: Paiement par carte détecté -> Carte bancaire: {ttc_amount}")
@@ -392,7 +480,7 @@ def calculate_corrected_amounts(df_merged_final):
         
         # Calculer TVA = TTC - HT (seulement là où on a les deux du journal)
         mask_both_journal = ttc_amounts.notna() & ht_amounts.notna()
-        tva_amounts.loc[mask_both_journal] = ttc_amounts.loc[mask_both_journal] - ht_amounts.loc[mask_both_journal]
+        tva_amounts.loc=mask_both_journal] = ttc_amounts.loc[mask_both_journal] - ht_amounts.loc[mask_both_journal]
         print(f"DEBUG: {mask_both_journal.sum()} montants TVA calculés depuis Journal (TTC - HT)")
       # ÉTAPE 2: Appliquer le fallback conditionnel
     # Condition: TTC, HT, TVA sont TOUS vides (peu importe le statut de Shopify)
@@ -686,7 +774,8 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
             df_merged_final = pd.merge(df_merged_step1, df_journal, 
                                       left_on='Name', right_on='Piece', how='left')
         print(f"   - Après fusion avec journal: {len(df_merged_final)} lignes")
-          # Diagnostic après fusion
+        
+        # Diagnostic après fusion
         ref_lmb_non_nulles = df_merged_final['Référence LMB'].notna().sum()
         print(f"   - Références LMB trouvées: {ref_lmb_non_nulles}/{len(df_merged_final)} ({ref_lmb_non_nulles/len(df_merged_final)*100:.1f}%)")        # ÉTAPE 4: Création du tableau final avec les 16 colonnes
         print("6. Création du tableau final...")
@@ -1104,8 +1193,7 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         print("   - Diagnostic avant fusion avec journal:")
         print(f"     * Commandes uniques dans df_merged_step1: {df_merged_step1['Name'].nunique()} ({list(df_merged_step1['Name'].unique()[:5])}...)")
         print(f"     * Références uniques dans journal: {df_journal['Piece'].nunique()} ({list(df_journal['Piece'].unique()[:5])}...)")
-        
-        # Vérifier les correspondances
+          # Vérifier les correspondances
         commandes_dans_journal = df_merged_step1['Name'].isin(df_journal['Piece']).sum()
         print(f"     * Commandes qui ont une correspondance dans le journal: {commandes_dans_journal}/{len(df_merged_step1)}")
         
@@ -1141,8 +1229,7 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         df_final['Date Facture'] = calculate_invoice_dates(df_merged_final)
         df_final['Etat'] = df_merged_final['Financial Status'].fillna('').apply(translate_financial_status)
         df_final['Client'] = df_merged_final['Billing name'].fillna('')
-        
-        # Calculs des montants
+          # Calculs des montants
         corrected_amounts = calculate_corrected_amounts(df_merged_final)
         df_final['HT'] = corrected_amounts['HT']
         df_final['TVA'] = corrected_amounts['TVA']
@@ -1157,8 +1244,8 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
             lambda row: categorize_payment_method(
                 row.get('Payment Method'),  # Méthode de paiement des commandes
                 row.get('Payment Method Name'),  # Méthode de paiement des transactions (plus précise pour PayPal),
-                row['Presentment Amount'], 
-                fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
+                corrected_amounts['TTC'].loc[row.name] if row.name in corrected_amounts['TTC'].index else None,  # Utiliser le TTC calculé
+                fallback_amount=row.get('Total', 0)  # Fallback sur le montant de la commande
             ), 
             axis=1
         )
@@ -1167,43 +1254,28 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         df_final['Carte bancaire'] = [pm['Carte bancaire'] for pm in payment_categorization]
         df_final['ALMA'] = [pm['ALMA'] for pm in payment_categorization]
         df_final['Younited'] = [pm['Younited'] for pm in payment_categorization]
-        df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]
+        df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]          # PRÉPARATION STATUT DYNAMIQUE: Créer une colonne vide pour les formules Excel
+        # Les formules seront ajoutées lors de la génération du fichier Excel
+        df_final['Statut'] = ''  # Colonne vide pour les formules
         
-        # ÉTAPE 8: Nettoyage final et création du DataFrame final
         print("8. Nettoyage final des données...")
         
-        # Remplacer les NaN par des chaînes vides pour les colonnes texte
-        text_columns = ['Centre de profit', 'Réf.WEB', 'Réf. LMB', 'Date Facture', 'Etat', 'Client']
-        for col in text_columns:
-            df_final[col] = df_final[col].fillna('')
+        # Appliquer les indicateurs d'informations manquantes
+        df_final = fill_missing_data_indicators(df_final, df_merged_final)
         
-        # Arrondir les montants à 2 décimales
-        numeric_columns = ['HT', 'TVA', 'TTC', 'reste', 'Shopify', 'Frais de commission', 
-                          'Virement bancaire', 'ALMA', 'Younited', 'PayPal']
-        for col in numeric_columns:
-            df_final[col] = df_final[col].round(2)
-          # Créer le DataFrame final avec les colonnes dans l'ordre spécifié
-        ordered_columns = [
-            'Centre de profit', 'Réf.WEB', 'Réf. LMB', 'Date Facture', 'Etat', 'Client',
-            'HT', 'TVA', 'TTC', 'reste', 'Shopify', 'Frais de commission',
-            'Virement bancaire', 'ALMA', 'Younited', 'PayPal', 'Statut'
-        ]
+        # S'assurer que "Centre de profit" est toujours "lcdi.fr" (forcer après toutes les fusions)
+        df_final['Centre de profit'] = 'lcdi.fr'
         
-        result_df = df_final[ordered_columns].copy()
+        # Indicateurs de données manquantes
+        df_final = fill_missing_data_indicators(df_final, df_merged_final)
         
-        # Renommer les colonnes pour correspondre aux attentes des tests
-        result_df.rename(columns={
-            'Client': 'Nom',
-            'Réf.WEB': 'Référence'
-        }, inplace=True)
+        print(f"=== TRAITEMENT TERMINÉ ===")
+        print(f"Tableau final généré avec {len(df_final)} lignes et {len(df_final.columns)} colonnes")
         
-        print("=== TRAITEMENT TERMINÉ ===")
-        print(f"Tableau final généré avec {len(result_df)} lignes et {len(result_df.columns)} colonnes")
-        
-        return result_df
+        return df_final
         
     except Exception as e:
-        print(f"ERREUR lors du traitement: {e}")
+        print(f"ERREUR lors du traitement: {str(e)}")
         raise e
 
 def translate_financial_status(status):
@@ -1315,7 +1387,7 @@ def improve_journal_matching(df_orders, df_journal):
         if ' ' not in journal_ref_str:
             # Normaliser la référence
             journal_normalized = journal_ref_str if journal_ref_str.startswith('#') else f"#{journal_ref_str}"
-            journal_mapping[journal_normalized] = journal_row          # Cas 2: Référence multiple (ex: LCDI-1020 LCDI-1021) 
+            journal_mapping[journal_normalized] = journal_row          # Cas 2: Référence multiple (ex: LCDI-1020 LCDI-1021)
         else:
             import re
             # Extraire tous les numéros de commandes
@@ -1633,73 +1705,119 @@ def index():
 @app.route('/process', methods=['POST'])
 def process_files():
     """Traite les fichiers uploadés et génère le tableau consolidé"""
+    print(f"\n{'*'*80}")
+    print(f"ROUTE /process APPELÉE!")
+    print(f"Method: {request.method}")
+    print(f"Content-Type: {request.content_type}")
+    print(f"Content-Length: {request.content_length}")
+    print(f"Form keys: {list(request.form.keys())}")
+    print(f"Files keys: {list(request.files.keys())}")
+    print(f"{'*'*80}\n")
+    
+    logger.info("=== DEBUT DU TRAITEMENT ===")
+    logger.info(f"Méthode HTTP: {request.method}")
+    logger.info(f"URL: {request.url}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    logger.info(f"Form keys: {list(request.form.keys())}")
+    logger.info(f"Files keys: {list(request.files.keys())}")
+    
     try:
         # Récupérer le mode de traitement
         processing_mode = request.form.get('processing_mode', 'new')
+        logger.info(f"Mode de traitement: {processing_mode}")
         
         # Vérification de la présence de tous les fichiers requis
         required_files = ['orders_file', 'transactions_file', 'journal_file']
         files = {}
         
+        logger.info("Vérification des fichiers requis...")
         for file_key in required_files:
+            logger.debug(f"Vérification du fichier: {file_key}")
             if file_key not in request.files:
-                flash(f'Le fichier {file_key.replace("_", " ")} est manquant.')
+                error_msg = f'Le fichier {file_key.replace("_", " ")} est manquant.'
+                logger.error(error_msg)
+                flash(error_msg)
                 return redirect(url_for('index'))
             
             file = request.files[file_key]
+            logger.debug(f"Fichier {file_key}: nom='{file.filename}', taille={file.content_length if hasattr(file, 'content_length') else 'inconnue'}")
+            
             if file.filename == '':
-                flash(f'Veuillez sélectionner un fichier pour {file_key.replace("_", " ")}.')
+                error_msg = f'Veuillez sélectionner un fichier pour {file_key.replace("_", " ")}.'
+                logger.error(error_msg)
+                flash(error_msg)
                 return redirect(url_for('index'))
             
             if not allowed_file(file.filename):
-                flash(f'Le fichier {file.filename} doit être un fichier CSV.')
+                error_msg = f'Le fichier {file.filename} doit être un fichier CSV.'
+                logger.error(error_msg)
+                flash(error_msg)
                 return redirect(url_for('index'))
             
             files[file_key] = file
         
+        logger.info("Tous les fichiers requis sont présents et valides")
+        
         # En mode combinaison, vérifier la présence du fichier ancien
         old_file = None
         if processing_mode == 'combine':
+            logger.info("Mode combinaison: vérification du fichier ancien...")
             if 'old_file' not in request.files or request.files['old_file'].filename == '':
-                flash('Veuillez sélectionner un ancien fichier à compléter.')
+                error_msg = 'Veuillez sélectionner un ancien fichier à compléter.'
+                logger.error(error_msg)
+                flash(error_msg)
                 return redirect(url_for('index'))
             
             old_file = request.files['old_file']
+            logger.debug(f"Fichier ancien: nom='{old_file.filename}'")
+            
             if not (old_file.filename.endswith('.xlsx') or old_file.filename.endswith('.csv')):
-                flash('L\'ancien fichier doit être au format Excel (.xlsx) ou CSV (.csv).')
+                error_msg = 'L\'ancien fichier doit être au format Excel (.xlsx) ou CSV (.csv).'
+                logger.error(error_msg)
+                flash(error_msg)
                 return redirect(url_for('index'))
             
             files['old_file'] = old_file
         
         # Sauvegarde temporaire des fichiers
         temp_paths = {}
+        logger.info("Sauvegarde temporaire des fichiers...")
         try:
             for file_key, file in files.items():
                 filename = secure_filename(file.filename)
                 temp_path = os.path.join(UPLOAD_FOLDER, filename)
+                logger.debug(f"Sauvegarde {file_key} vers: {temp_path}")
                 file.save(temp_path)
                 temp_paths[file_key] = temp_path
-              # Génération des nouvelles données
-            df_new_data = generate_consolidated_billing_table(
-                temp_paths['orders_file'],
-                temp_paths['transactions_file'], 
-                temp_paths['journal_file']
-            )
-            
-            # Traitement selon le mode
-            if processing_mode == 'combine' and old_file:
-                # Mode combinaison : fusionner avec l'ancien fichier
-                old_file_path = os.path.join(UPLOAD_FOLDER, secure_filename(old_file.filename))
-                old_file.save(old_file_path)
-                temp_paths['old_file'] = old_file_path
+                logger.debug(f"Fichier {file_key} sauvegardé avec succès")
                 
-                df_result = combine_with_old_file(df_new_data, old_file_path)
-                flash(f'Fichiers combinés avec succès! Fusion intelligente effectuée. Total: {len(df_result)} lignes.', 'success')
-            else:
-                # Mode nouveau fichier
-                df_result = df_new_data
-                flash(f'Tableau généré avec succès! {len(df_result)} lignes traitées.', 'success')
-              # Création du fichier de sortie avec timestamp au format DD_MM_YYYY
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde des fichiers: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            flash(f"Erreur lors de la sauvegarde des fichiers: {str(e)}")
+            return redirect(url_for('index'))
+            
+        # Génération des nouvelles données
+        df_new_data = generate_consolidated_billing_table(
+            temp_paths['orders_file'],
+            temp_paths['transactions_file'], 
+            temp_paths['journal_file']
+        )
+        
+        # Traitement selon le mode
+        if processing_mode == 'combine' and old_file:
+            # Mode combinaison : fusionner avec l'ancien fichier
+            old_file_path = os.path.join(UPLOAD_FOLDER, secure_filename(old_file.filename))
+            old_file.save(old_file_path)
+            temp_paths['old_file'] = old_file_path
+            
+            df_result = combine_with_old_file(df_new_data, old_file_path)
+            flash(f'Fichiers combinés avec succès! Fusion intelligente effectuée. Total: {len(df_result)} lignes.', 'success')
+        else:
+            # Mode nouveau fichier
+            df_result = df_new_data
+            flash(f'Tableau généré avec succès! {len(df_result)} lignes traitées.', 'success')
+          # Création du fichier de sortie avec timestamp au format DD_MM_YYYY
             timestamp = datetime.now().strftime('%d_%m_%Y')
             output_filename = f'Compta_LCDI_Shopify_{timestamp}.csv'
             output_path = os.path.join(OUTPUT_FOLDER, output_filename)
@@ -1712,20 +1830,12 @@ def process_files():
             else:
                 flash(f'Tableau CSV généré avec succès! {len(df_result)} lignes traitées.', 'success')
                 download_filename = os.path.basename(final_path)
-            
-            # Rediriger vers la page de succès qui gère le téléchargement automatique
+              # Rediriger vers la page de succès qui gère le téléchargement automatique
             return redirect(url_for('success_page', filename=download_filename))
-            
-        finally:
-            # Nettoyage des fichiers temporaires
-            for temp_path in temp_paths.values():
-                if os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except:
-                        pass
         
     except Exception as e:
+        logger.error(f'Erreur lors du traitement: {str(e)}')
+        logger.error(f'Traceback: {traceback.format_exc()}')
         flash(f'Erreur lors du traitement: {str(e)}', 'error')
         return redirect(url_for('index'))
 
@@ -1943,14 +2053,30 @@ def download_file(filename):
             mimetype = 'text/csv'
         
         return send_file(
-            file_path, 
-            as_attachment=True, 
+            file_path,            as_attachment=True, 
             download_name=filename,
             mimetype=mimetype
         )
     else:
         flash('Fichier non trouvé.', 'error')
         return redirect(url_for('index'))
+
+@app.route('/test-post', methods=['POST', 'GET'])
+def test_post():
+    """Route de test pour vérifier le fonctionnement des POST"""
+    print(f"\n{'='*60}")
+    print(f"ROUTE TEST-POST APPELÉE!")
+    print(f"Method: {request.method}")
+    print(f"{'='*60}\n")
+    
+    if request.method == 'POST':
+        return "POST fonctionne!", 200
+    else:
+        return '''
+        <form method="POST" action="/test-post">
+            <input type="submit" value="Test POST">
+        </form>
+        '''
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Form</title>
+</head>
+<body>
+    <h1>Test Form</h1>
+    <form method="POST" action="/process" enctype="multipart/form-data">
+        <input type="radio" name="processing_mode" value="new" checked>
+        <label>Nouveau</label><br>
+        
+        <input type="file" name="orders_file" accept=".csv" required><br>
+        <input type="file" name="transactions_file" accept=".csv" required><br>
+        <input type="file" name="journal_file" accept=".csv" required><br>
+        
+        <button type="submit">Envoyer</button>
+    </form>
+</body>
+</html>
