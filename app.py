@@ -271,55 +271,81 @@ def format_date_to_french(date_str):
         print(f"Erreur lors du formatage de la date '{date_str}': {e}")
         return str(date_str) if date_str else ''
 
-def categorize_payment_method(payment_method, ttc_value, fallback_amount=None):
-    """Catégorise les méthodes de paiement et retourne les montants par catégorie"""
-    if pd.isna(payment_method):
-        return {'Virement bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
+def categorize_payment_method(payment_method_orders, payment_method_transactions, ttc_value, fallback_amount=None):
+    """
+    Catégorise les méthodes de paiement et retourne les montants par catégorie
+    NOUVELLE LOGIQUE:
+    - Les paiements par carte (Shopify Payments, credit_card, etc.) vont dans "Carte bancaire"
+    - Utilise prioritairement Payment Method Name du fichier transactions pour PayPal
+    - Laisse les cellules vides pour les méthodes non reconnues
+    """
+    # Initialiser toutes les catégories à 0
+    result = {'Virement bancaire': 0, 'Carte bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
     
     # Utiliser le montant principal, sinon le fallback
     amount_to_use = ttc_value
     if pd.isna(ttc_value) and fallback_amount is not None and not pd.isna(fallback_amount):
         amount_to_use = fallback_amount
-        print(f"DEBUG: Utilisation fallback amount {fallback_amount} pour méthode '{payment_method}'")
+        print(f"DEBUG: Utilisation fallback amount {fallback_amount} pour méthode orders='{payment_method_orders}', transactions='{payment_method_transactions}'")
     
     # Si aucun montant valide, retourner 0 partout
     if pd.isna(amount_to_use):
-        print(f"DEBUG: Aucun montant valide pour méthode '{payment_method}', retour 0")
-        return {'Virement bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
+        print(f"DEBUG: Aucun montant valide pour méthodes orders='{payment_method_orders}', transactions='{payment_method_transactions}', retour 0")
+        return result
     
-    payment_method_lower = str(payment_method).lower()
-    ttc_amount = float(amount_to_use)
+    ttc_amount = float(amount_to_use)    # Préparer les chaînes pour la comparaison
+    payment_orders_str = str(payment_method_orders).lower() if not pd.isna(payment_method_orders) else ""
+    payment_transactions_str = str(payment_method_transactions).lower() if not pd.isna(payment_method_transactions) else ""
     
-    # Initialiser toutes les catégories à 0
-    result = {'Virement bancaire': 0, 'ALMA': 0, 'Younited': 0, 'PayPal': 0}
+    print(f"DEBUG: Analyse paiement - Orders: '{payment_orders_str}', Transactions: '{payment_transactions_str}', Montant: {ttc_amount}")
     
-    # Améliorer la détection des méthodes de paiement selon les vraies données
-    if 'virement' in payment_method_lower or 'wire' in payment_method_lower:
-        result['Virement bancaire'] = ttc_amount
-    elif 'alma' in payment_method_lower:
+    # DEBUG SPÉCIAL pour les commandes PayPal problématiques
+    if any(ref in str(payment_orders_str + payment_transactions_str) for ref in ['1041', '1037', '1040', '1042']):
+        print(f"🔍 DEBUG COMMANDE SPÉCIALE: Orders='{payment_method_orders}', Transactions='{payment_method_transactions}', TTC={ttc_amount}")
+    
+    # PRIORITÉ 1: Vérifier PayPal dans les transactions (plus précis)
+    # Détection élargie : paypal, pay pal, pp, etc.
+    if ('paypal' in payment_transactions_str or 'pay pal' in payment_transactions_str or 
+        'pay-pal' in payment_transactions_str or payment_transactions_str == 'pp'):
+        result['PayPal'] = ttc_amount
+        print(f"DEBUG: PayPal détecté dans transactions -> PayPal: {ttc_amount}")
+    # AUSSI: Vérifier PayPal dans les commandes (fallback)
+    elif ('paypal' in payment_orders_str or 'pay pal' in payment_orders_str or 
+          'pay-pal' in payment_orders_str or payment_orders_str == 'pp'):
+        result['PayPal'] = ttc_amount
+        print(f"DEBUG: PayPal détecté dans commandes -> PayPal: {ttc_amount}")
+    # PRIORITÉ 2: Alma et Younited
+    elif 'alma' in payment_orders_str or 'alma' in payment_transactions_str:
         result['ALMA'] = ttc_amount
-    elif 'younited' in payment_method_lower:
+        print(f"DEBUG: ALMA détecté -> ALMA: {ttc_amount}")
+    elif 'younited' in payment_orders_str or 'younited' in payment_transactions_str:
         result['Younited'] = ttc_amount
-    elif 'paypal' in payment_method_lower:
-        result['PayPal'] = ttc_amount
-    elif 'shopify payments' in payment_method_lower:
-        # Shopify Payments = PayPal/CB généralement
-        result['PayPal'] = ttc_amount
-    elif 'custom' in payment_method_lower:
-        # Custom = souvent virement bancaire
+        print(f"DEBUG: Younited détecté -> Younited: {ttc_amount}")
+    # PRIORITÉ 3: Vrais virements bancaires uniquement
+    elif ('virement' in payment_orders_str or 'wire' in payment_orders_str or 'bank' in payment_orders_str or
+          'custom' in payment_orders_str):  # Custom = souvent virement bancaire
         result['Virement bancaire'] = ttc_amount
+        print(f"DEBUG: Virement bancaire détecté -> Virement bancaire: {ttc_amount}")    # PRIORITÉ 4: Paiements par carte bancaire
+    elif ('shopify payments' in payment_orders_str or 'shopify payment' in payment_orders_str or
+          'credit_card' in payment_orders_str or 'credit card' in payment_orders_str or
+          'carte' in payment_orders_str or 'card' in payment_transactions_str):
+        # Paiements par carte: vont dans la colonne "Carte bancaire"
+        result['Carte bancaire'] = ttc_amount
+        print(f"DEBUG: Paiement par carte détecté -> Carte bancaire: {ttc_amount}")
     else:
-        # Méthode non reconnue, on peut la logger ou l'attribuer par défaut
-        print(f"DEBUG: Méthode de paiement non reconnue: '{payment_method}' -> attribuée à PayPal")
-        result['PayPal'] = ttc_amount
+        # Méthode non reconnue, laisser les cellules vides pour traitement manuel
+        print(f"DEBUG: Méthode de paiement non reconnue: orders='{payment_orders_str}', transactions='{payment_transactions_str}' -> cellules vides")
+        # Toutes les catégories restent à 0 (cellules vides)
     
     return result
 
 def calculate_corrected_amounts(df_merged_final):
     """
-    Calcule les montants HT, TVA, TTC avec logique stricte.
-    PRIORITÉ UNIQUE: Utilise les colonnes du Journal ("Montant du document TTC", "Montant du document HT")
-    Si pas de données Journal, laisse la cellule vide (NaN) pour formatage conditionnel rouge
+    Calcule les montants HT, TVA, TTC avec logique stricte et fallback conditionnel.
+    PRIORITÉ 1: Utilise strictement les colonnes du Journal ("Montant du document TTC", "Montant du document HT")
+    PRIORITÉ 2: Si pas de données Journal OU de transactions, laisse la cellule vide (NaN) pour formatage conditionnel rouge
+    FALLBACK CONDITIONNEL: Si TTC, HT, TVA ET Shopify sont TOUS vides sur une ligne, 
+                           alors utiliser "Total" et "Taxes" du fichier commandes UNIQUEMENT pour ces lignes
     """
     # Debug: afficher les colonnes disponibles
     print(f"DEBUG: Colonnes disponibles: {list(df_merged_final.columns)}")
@@ -338,53 +364,72 @@ def calculate_corrected_amounts(df_merged_final):
     ht_amounts = pd.Series([None] * len(df_merged_final), dtype=float, index=df_merged_final.index)
     tva_amounts = pd.Series([None] * len(df_merged_final), dtype=float, index=df_merged_final.index)
     
-    # PRIORITÉ 1: Utiliser les montants du Journal si disponibles
+    # ÉTAPE 1: Traiter les montants du Journal (strictement prioritaires)
     journal_ttc_available = 'Montant du document TTC' in df_merged_final.columns
     journal_ht_available = 'Montant du document HT' in df_merged_final.columns
     
     if journal_ttc_available:
-        print("DEBUG: Utilisation des montants TTC du Journal (strict - pas de fallback)")
+        print("DEBUG: Traitement des montants TTC du Journal (priorité absolue)")
         # Convertir les montants français (virgule) en format numérique
         ttc_col = df_merged_final['Montant du document TTC'].astype(str).str.replace(',', '.').str.replace(' ', '')
         ttc_amounts_journal = pd.to_numeric(ttc_col, errors='coerce')
         
-        # Utiliser uniquement les montants du journal (pas de fallback)
-        ttc_amounts = ttc_amounts_journal.copy()
+        # Appliquer les montants du journal là où ils existent
+        mask_journal_ttc = ttc_amounts_journal.notna()
+        ttc_amounts.loc[mask_journal_ttc] = ttc_amounts_journal.loc[mask_journal_ttc]
+        print(f"DEBUG: {mask_journal_ttc.sum()} montants TTC récupérés du Journal")
         
-        if journal_ht_available:
-            print("DEBUG: Utilisation des montants HT du Journal (strict)")
-            # Convertir les montants français (virgule) en format numérique
-            ht_col = df_merged_final['Montant du document HT'].astype(str).str.replace(',', '.').str.replace(' ', '')
-            ht_amounts_journal = pd.to_numeric(ht_col, errors='coerce')
-            
-            # Utiliser uniquement les montants HT du journal
-            ht_amounts = ht_amounts_journal.copy()
-            
-            # Calculer TVA = TTC - HT (seulement là où on a les deux)
-            mask_both_available = ttc_amounts.notna() & ht_amounts.notna()
-            tva_amounts.loc[mask_both_available] = ttc_amounts.loc[mask_both_available] - ht_amounts.loc[mask_both_available]
-        else:
-            print("DEBUG: Pas de montants HT dans le Journal - cellules HT et TVA restent vides")
-            # Laisser HT et TVA vides si pas dans le journal
-    else:
-        print("DEBUG: Pas de montants TTC dans le Journal - utilisation des montants commandes uniquement là où journal absent")
-        # Si pas de colonne TTC journal du tout, utiliser les commandes pour les lignes sans journal
-        if 'Total' in df_merged_final.columns:
-            # Détecter les lignes qui ont une Réf. LMB (donc potentiellement des données journal)
-            has_lmb = df_merged_final['Référence LMB'].notna() & (df_merged_final['Référence LMB'] != '')
-            # Pour les lignes SANS Réf. LMB, utiliser les montants des commandes
-            mask_no_lmb = ~has_lmb
-            
-            ttc_from_orders = pd.to_numeric(df_merged_final['Total'], errors='coerce')
-            ttc_amounts.loc[mask_no_lmb] = ttc_from_orders.loc[mask_no_lmb]
-            
-            if 'Taxes' in df_merged_final.columns:
-                tva_from_orders = pd.to_numeric(df_merged_final['Taxes'], errors='coerce')
-                tva_amounts.loc[mask_no_lmb] = tva_from_orders.loc[mask_no_lmb]
-                
-                # Calculer HT = TTC - TVA pour les lignes sans journal
-                mask_calc_ht = mask_no_lmb & ttc_amounts.notna() & tva_amounts.notna()
-                ht_amounts.loc[mask_calc_ht] = ttc_amounts.loc[mask_calc_ht] - tva_amounts.loc[mask_calc_ht]
+    if journal_ht_available:
+        print("DEBUG: Traitement des montants HT du Journal (priorité absolue)")
+        # Convertir les montants français (virgule) en format numérique
+        ht_col = df_merged_final['Montant du document HT'].astype(str).str.replace(',', '.').str.replace(' ', '')
+        ht_amounts_journal = pd.to_numeric(ht_col, errors='coerce')
+        
+        # Appliquer les montants HT du journal là où ils existent
+        mask_journal_ht = ht_amounts_journal.notna()
+        ht_amounts.loc[mask_journal_ht] = ht_amounts_journal.loc[mask_journal_ht]
+        print(f"DEBUG: {mask_journal_ht.sum()} montants HT récupérés du Journal")
+        
+        # Calculer TVA = TTC - HT (seulement là où on a les deux du journal)
+        mask_both_journal = ttc_amounts.notna() & ht_amounts.notna()
+        tva_amounts.loc[mask_both_journal] = ttc_amounts.loc[mask_both_journal] - ht_amounts.loc[mask_both_journal]
+        print(f"DEBUG: {mask_both_journal.sum()} montants TVA calculés depuis Journal (TTC - HT)")
+      # ÉTAPE 2: Appliquer le fallback conditionnel
+    # Condition: TTC, HT, TVA sont TOUS vides (peu importe le statut de Shopify)
+    print("DEBUG: Application du fallback conditionnel...")
+    
+    # Identifier les lignes où les montants principaux sont vides (TTC, HT, TVA)
+    mask_amounts_empty = (
+        ttc_amounts.isna() & 
+        ht_amounts.isna() & 
+        tva_amounts.isna()
+    )
+    
+    lines_for_fallback = mask_amounts_empty.sum()
+    print(f"DEBUG: {lines_for_fallback} lignes éligibles au fallback (TTC, HT, TVA tous vides, peu importe Shopify)")
+    
+    # Appliquer le fallback uniquement pour ces lignes
+    if lines_for_fallback > 0 and 'Total' in df_merged_final.columns:
+        print("DEBUG: Application du fallback depuis les commandes (Total et Taxes)")
+        
+        # Récupérer les montants des commandes
+        total_from_orders = pd.to_numeric(df_merged_final['Total'], errors='coerce')
+        taxes_from_orders = pd.Series([None] * len(df_merged_final), dtype=float, index=df_merged_final.index)
+        
+        if 'Taxes' in df_merged_final.columns:
+            taxes_from_orders = pd.to_numeric(df_merged_final['Taxes'], errors='coerce')
+          # Appliquer le fallback UNIQUEMENT aux lignes éligibles
+        mask_fallback_ttc = mask_amounts_empty & total_from_orders.notna()
+        mask_fallback_tva = mask_amounts_empty & taxes_from_orders.notna()
+        
+        ttc_amounts.loc[mask_fallback_ttc] = total_from_orders.loc[mask_fallback_ttc]
+        tva_amounts.loc[mask_fallback_tva] = taxes_from_orders.loc[mask_fallback_tva]
+        
+        # Calculer HT = TTC - TVA pour les lignes de fallback
+        mask_fallback_ht = mask_amounts_empty & ttc_amounts.notna() & tva_amounts.notna()
+        ht_amounts.loc[mask_fallback_ht] = ttc_amounts.loc[mask_fallback_ht] - tva_amounts.loc[mask_fallback_ht]
+        
+        print(f"DEBUG: Fallback appliqué - TTC: {mask_fallback_ttc.sum()}, TVA: {mask_fallback_tva.sum()}, HT: {mask_fallback_ht.sum()}")
     
     # Statistiques finales
     ttc_filled = ttc_amounts.notna().sum()
@@ -392,7 +437,7 @@ def calculate_corrected_amounts(df_merged_final):
     tva_filled = tva_amounts.notna().sum()
     n_rows = len(df_merged_final)
     
-    print(f"DEBUG: Cellules remplies - TTC: {ttc_filled}/{n_rows}, HT: {ht_filled}/{n_rows}, TVA: {tva_filled}/{n_rows}")
+    print(f"DEBUG: RÉSULTAT FINAL - Cellules remplies - TTC: {ttc_filled}/{n_rows}, HT: {ht_filled}/{n_rows}, TVA: {tva_filled}/{n_rows}")
     print(f"DEBUG: Cellules vides (formatage rouge) - TTC: {n_rows - ttc_filled}, HT: {n_rows - ht_filled}, TVA: {n_rows - tva_filled}")
     print(f"DEBUG: Échantillon TTC: {ttc_amounts.head().tolist()}")
     print(f"DEBUG: Échantillon HT: {ht_amounts.head().tolist()}")
@@ -492,8 +537,7 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         # Chargement du fichier des commandes (séparateur virgule)
         df_orders = safe_read_csv(orders_file, separator=',')
         print(f"   - Commandes chargées: {len(df_orders)} lignes")
-        
-        # Chargement du fichier des transactions (séparateur virgule)  
+          # Chargement du fichier des transactions (séparateur virgule)  
         df_transactions = safe_read_csv(transactions_file, separator=',')
         print(f"   - Transactions chargées: {len(df_transactions)} lignes")
         
@@ -503,7 +547,7 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
           # Vérification et normalisation des colonnes requises
         required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 
                                'Tax 1 Value', 'Outstanding Balance', 'Payment Method', 'Total', 'Taxes']
-        required_transactions_cols = ['Order', 'Presentment Amount', 'Fee', 'Net']
+        required_transactions_cols = ['Order', 'Presentment Amount', 'Fee', 'Net', 'Payment Method Name']
         required_journal_cols = ['Piece', 'Référence LMB']
         
         print("\n2. Vérification et normalisation des colonnes...")
@@ -521,7 +565,7 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         
         # Nettoyage des colonnes de texte utilisées comme clés de jointure
         df_orders = clean_text_data(df_orders, ['Name', 'Billing name', 'Financial Status', 'Payment Method'])
-        df_transactions = clean_text_data(df_transactions, ['Order'])
+        df_transactions = clean_text_data(df_transactions, ['Order', 'Payment Method Name'])
         df_journal = clean_text_data(df_journal, ['Piece', 'Référence LMB'])
         
         # Formatage des dates - conversion en format français jj/mm/aaaa
@@ -598,15 +642,16 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         
         # Remplacer df_orders par la version agrégée
         df_orders = df_orders_aggregated
-        
-        # ÉTAPE 2: Agrégation des transactions par commande
+          # ÉTAPE 2: Agrégation des transactions par commande
         print("4. Agrégation des transactions par commande...")
         
         # Grouper par Order et sommer les montants pour éviter les doublons
+        # IMPORTANT: Garder aussi Payment Method Name (prendre la première valeur)
         df_transactions_aggregated = df_transactions.groupby('Order').agg({
             'Presentment Amount': 'sum',
             'Fee': 'sum',
-            'Net': 'sum'
+            'Net': 'sum',
+            'Payment Method Name': 'first'  # Garder la méthode de paiement
         }).reset_index()
         
         print(f"   - Transactions après agrégation: {len(df_transactions_aggregated)} lignes")
@@ -646,6 +691,15 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         print(f"   - Références LMB trouvées: {ref_lmb_non_nulles}/{len(df_merged_final)} ({ref_lmb_non_nulles/len(df_merged_final)*100:.1f}%)")        # ÉTAPE 4: Création du tableau final avec les 16 colonnes
         print("6. Création du tableau final...")
         
+        # DEBUG: Vérifier les colonnes disponibles dans df_merged_final
+        print(f"DEBUG: Colonnes dans df_merged_final: {list(df_merged_final.columns)}")
+        print(f"DEBUG: 'Payment Method Name' présente: {'Payment Method Name' in df_merged_final.columns}")
+        
+        # DEBUG: Vérifier quelques exemples de Payment Method Name
+        if 'Payment Method Name' in df_merged_final.columns:
+            payment_methods = df_merged_final['Payment Method Name'].dropna().unique()
+            print(f"DEBUG: Valeurs uniques de Payment Method Name: {payment_methods}")
+        
         df_final = pd.DataFrame()
         
         # Colonnes du tableau final dans l'ordre requis
@@ -658,7 +712,6 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         
         # Calculs des montants
         corrected_amounts = calculate_corrected_amounts(df_merged_final)
-        
         df_final['HT'] = corrected_amounts['HT']
         df_final['TVA'] = corrected_amounts['TVA']
         df_final['TTC'] = corrected_amounts['TTC']
@@ -670,22 +723,21 @@ def generate_consolidated_billing_table(orders_file, transactions_file, journal_
         print("7. Traitement des méthodes de paiement...")
         payment_categorization = df_merged_final.apply(
             lambda row: categorize_payment_method(
-                row['Payment Method'], 
-                row['Presentment Amount'], 
-                fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
+                row.get('Payment Method'),  # Méthode de paiement des commandes
+                row.get('Payment Method Name'),  # Méthode de paiement des transactions (plus précise pour PayPal),
+                corrected_amounts['TTC'].loc[row.name] if row.name in corrected_amounts['TTC'].index else None,  # Utiliser le TTC calculé
+                fallback_amount=row.get('Total', 0)  # Fallback sur le montant de la commande
             ), 
             axis=1
         )
         
         df_final['Virement bancaire'] = [pm['Virement bancaire'] for pm in payment_categorization]
+        df_final['Carte bancaire'] = [pm['Carte bancaire'] for pm in payment_categorization]
         df_final['ALMA'] = [pm['ALMA'] for pm in payment_categorization]
         df_final['Younited'] = [pm['Younited'] for pm in payment_categorization]
-        df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]
-          # NETTOYAGE FINAL: Indiquer les informations manquantes
-        df_final['Statut'] = df_merged_final.apply(
-            lambda row: 'COMPLET' if pd.notna(row['Référence LMB']) and row['Outstanding Balance'] == 0 else 'INCOMPLET',
-            axis=1
-        )
+        df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]          # PRÉPARATION STATUT DYNAMIQUE: Créer une colonne vide pour les formules Excel
+        # Les formules seront ajoutées lors de la génération du fichier Excel
+        df_final['Statut'] = ''  # Colonne vide pour les formules
         
         print("8. Nettoyage final des données...")
         
@@ -740,7 +792,7 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         
         # Nettoyage des colonnes de texte utilisées comme clés de jointure
         df_orders = clean_text_data(df_orders, ['Name', 'Billing name', 'Financial Status', 'Payment Method'])
-        df_transactions = clean_text_data(df_transactions, ['Order'])
+        df_transactions = clean_text_data(df_transactions, ['Order', 'Payment Method Name'])
         df_journal = clean_text_data(df_journal, ['Piece', 'Référence LMB'])
         
         # Formatage des dates - conversion en format français jj/mm/aaaa
@@ -826,7 +878,8 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         df_transactions_aggregated = df_transactions.groupby('Order').agg({
             'Presentment Amount': 'sum',
             'Fee': 'sum',
-            'Net': 'sum'
+            'Net': 'sum',
+            'Payment Method Name': 'first'  # Garder la méthode de paiement
         }).reset_index()
         
         print(f"   - Transactions après agrégation: {len(df_transactions_aggregated)} lignes")
@@ -881,7 +934,6 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         
         # Calculs des montants
         corrected_amounts = calculate_corrected_amounts(df_merged_final)
-        
         df_final['HT'] = corrected_amounts['HT']
         df_final['TVA'] = corrected_amounts['TVA']
         df_final['TTC'] = corrected_amounts['TTC']
@@ -893,54 +945,40 @@ def process_dataframes_directly(df_orders, df_transactions, df_journal):
         print("7. Traitement des méthodes de paiement...")
         payment_categorization = df_merged_final.apply(
             lambda row: categorize_payment_method(
-                row['Payment Method'], 
-                row['Presentment Amount'], 
-                fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
+                row.get('Payment Method'),  # Méthode de paiement des commandes
+                row.get('Payment Method Name'),  # Méthode de paiement des transactions (plus précise pour PayPal),
+                corrected_amounts['TTC'].loc[row.name] if row.name in corrected_amounts['TTC'].index else None,  # Utiliser le TTC calculé
+                fallback_amount=row.get('Total', 0)  # Fallback sur le montant de la commande
             ), 
             axis=1
         )
         
         df_final['Virement bancaire'] = [pm['Virement bancaire'] for pm in payment_categorization]
+        df_final['Carte bancaire'] = [pm['Carte bancaire'] for pm in payment_categorization]
         df_final['ALMA'] = [pm['ALMA'] for pm in payment_categorization]
         df_final['Younited'] = [pm['Younited'] for pm in payment_categorization]
-        df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]
+        df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]          # PRÉPARATION STATUT DYNAMIQUE: Créer une colonne vide pour les formules Excel
+        # Les formules seront ajoutées lors de la génération du fichier Excel
+        df_final['Statut'] = ''  # Colonne vide pour les formules
         
-        # ÉTAPE 8: Nettoyage final et création du DataFrame final
         print("8. Nettoyage final des données...")
         
-        # Remplacer les NaN par des chaînes vides pour les colonnes texte
-        text_columns = ['Centre de profit', 'Réf.WEB', 'Réf. LMB', 'Date Facture', 'Etat', 'Client']
-        for col in text_columns:
-            df_final[col] = df_final[col].fillna('')
+        # Appliquer les indicateurs d'informations manquantes
+        df_final = fill_missing_data_indicators(df_final, df_merged_final)
         
-        # Arrondir les montants à 2 décimales
-        numeric_columns = ['HT', 'TVA', 'TTC', 'reste', 'Shopify', 'Frais de commission', 
-                          'Virement bancaire', 'ALMA', 'Younited', 'PayPal']
-        for col in numeric_columns:
-            df_final[col] = df_final[col].round(2)
+        # S'assurer que "Centre de profit" est toujours "lcdi.fr" (forcer après toutes les fusions)
+        df_final['Centre de profit'] = 'lcdi.fr'
         
-        # Créer le DataFrame final avec les colonnes dans l'ordre spécifié
-        ordered_columns = [
-            'Centre de profit', 'Réf.WEB', 'Réf. LMB', 'Date Facture', 'Etat', 'Client',
-            'HT', 'TVA', 'TTC', 'reste', 'Shopify', 'Frais de commission',
-            'Virement bancaire', 'ALMA', 'Younited', 'PayPal'
-        ]
+        # Indicateurs de données manquantes
+        df_final = fill_missing_data_indicators(df_final, df_merged_final)
         
-        result_df = df_final[ordered_columns].copy()
+        print(f"=== TRAITEMENT TERMINÉ ===")
+        print(f"Tableau final généré avec {len(df_final)} lignes et {len(df_final.columns)} colonnes")
         
-        # Renommer les colonnes pour correspondre aux attentes des tests
-        result_df.rename(columns={
-            'Client': 'Nom',
-            'Réf.WEB': 'Référence'
-        }, inplace=True)
-        
-        print("=== TRAITEMENT TERMINÉ ===")
-        print(f"Tableau final généré avec {len(result_df)} lignes et {len(result_df.columns)} colonnes")
-        
-        return result_df
+        return df_final
         
     except Exception as e:
-        print(f"ERREUR lors du traitement: {e}")
+        print(f"ERREUR lors du traitement: {str(e)}")
         raise e
 
 def process_dataframes_with_normalization(df_orders, df_transactions, df_journal):
@@ -959,7 +997,7 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         print("2. Vérification et normalisation des colonnes...")
           # Définir les colonnes requises
         required_orders_cols = ['Name', 'Fulfilled at', 'Billing name', 'Financial Status', 'Tax 1 Value', 'Outstanding Balance', 'Payment Method', 'Total', 'Taxes']
-        required_transactions_cols = ['Order', 'Presentment Amount', 'Fee', 'Net']
+        required_transactions_cols = ['Order', 'Presentment Amount', 'Fee', 'Net', 'Payment Method Name']
         required_journal_cols = ['Piece', 'Référence LMB']
           # Normaliser les noms de colonnes pour les commandes
         df_orders = normalize_column_names(df_orders, required_orders_cols, 'commandes')
@@ -978,7 +1016,7 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         
         # Nettoyage des colonnes de texte utilisées comme clés de jointure
         df_orders = clean_text_data(df_orders, ['Name', 'Billing name', 'Financial Status', 'Payment Method'])
-        df_transactions = clean_text_data(df_transactions, ['Order'])
+        df_transactions = clean_text_data(df_transactions, ['Order', 'Payment Method Name'])
         df_journal = clean_text_data(df_journal, ['Piece', 'Référence LMB'])
         
         # Formatage des dates - conversion en format français jj/mm/aaaa
@@ -1049,7 +1087,8 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         df_transactions_aggregated = df_transactions.groupby('Order').agg({
             'Presentment Amount': 'sum',
             'Fee': 'sum',
-            'Net': 'sum'
+            'Net': 'sum',
+            'Payment Method Name': 'first'  # Garder la méthode de paiement
         }).reset_index()
         
         print(f"   - Transactions après agrégation: {len(df_transactions_aggregated)} lignes")
@@ -1105,7 +1144,6 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         
         # Calculs des montants
         corrected_amounts = calculate_corrected_amounts(df_merged_final)
-        
         df_final['HT'] = corrected_amounts['HT']
         df_final['TVA'] = corrected_amounts['TVA']
         df_final['TTC'] = corrected_amounts['TTC']
@@ -1117,7 +1155,8 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         print("7. Traitement des méthodes de paiement...")
         payment_categorization = df_merged_final.apply(
             lambda row: categorize_payment_method(
-                row['Payment Method'], 
+                row.get('Payment Method'),  # Méthode de paiement des commandes
+                row.get('Payment Method Name'),  # Méthode de paiement des transactions (plus précise pour PayPal),
                 row['Presentment Amount'], 
                 fallback_amount=row.get('Total', 0)  # Utiliser le montant de la commande si pas de transaction
             ), 
@@ -1125,6 +1164,7 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
         )
         
         df_final['Virement bancaire'] = [pm['Virement bancaire'] for pm in payment_categorization]
+        df_final['Carte bancaire'] = [pm['Carte bancaire'] for pm in payment_categorization]
         df_final['ALMA'] = [pm['ALMA'] for pm in payment_categorization]
         df_final['Younited'] = [pm['Younited'] for pm in payment_categorization]
         df_final['PayPal'] = [pm['PayPal'] for pm in payment_categorization]
@@ -1142,12 +1182,11 @@ def process_dataframes_with_normalization(df_orders, df_transactions, df_journal
                           'Virement bancaire', 'ALMA', 'Younited', 'PayPal']
         for col in numeric_columns:
             df_final[col] = df_final[col].round(2)
-        
-        # Créer le DataFrame final avec les colonnes dans l'ordre spécifié
+          # Créer le DataFrame final avec les colonnes dans l'ordre spécifié
         ordered_columns = [
             'Centre de profit', 'Réf.WEB', 'Réf. LMB', 'Date Facture', 'Etat', 'Client',
             'HT', 'TVA', 'TTC', 'reste', 'Shopify', 'Frais de commission',
-            'Virement bancaire', 'ALMA', 'Younited', 'PayPal'
+            'Virement bancaire', 'ALMA', 'Younited', 'PayPal', 'Statut'
         ]
         
         result_df = df_final[ordered_columns].copy()
@@ -1454,14 +1493,89 @@ def fill_missing_data_indicators(df_final, df_merged_final):
             status_info.append("COMPLET")
         else:
             status_info.append("INCOMPLET")
-    
-    # 3. Ajouter la colonne de statut
-    df_final['Statut'] = status_info    
+      # 3. Préparer la colonne de statut pour les formules Excel dynamiques
+    df_final['Statut'] = ''  # Colonne vide - les formules seront ajoutées dans Excel
     print(f"DEBUG: Cellules NaN conservées pour formatage rouge - HT, TVA, TTC")
     print(f"DEBUG: Cellules conservées (valeurs calculées) - Virement bancaire, ALMA, Younited, PayPal")
     print(f"DEBUG: Cellules nettoyées (NaN->0) - colonnes secondaires: {secondary_numeric_columns}")
     
     return df_final
+
+def combine_with_old_file(df_new_data, old_file_path):
+    """
+    Combine les nouvelles données avec un ancien fichier Excel/CSV
+    Évite les doublons basés sur la colonne 'Réf.WEB'
+    """
+    try:
+        print("=== DÉBUT COMBINAISON AVEC ANCIEN FICHIER ===")
+        
+        # Charger l'ancien fichier
+        if old_file_path.endswith('.xlsx'):
+            df_old = pd.read_excel(old_file_path)
+            print(f"Ancien fichier Excel chargé: {len(df_old)} lignes")
+        else:
+            df_old = pd.read_csv(old_file_path)
+            print(f"Ancien fichier CSV chargé: {len(df_old)} lignes")
+        
+        # Vérifier que la colonne Réf.WEB existe dans les deux fichiers
+        if 'Réf.WEB' not in df_old.columns:
+            print("ERREUR: La colonne 'Réf.WEB' n'existe pas dans l'ancien fichier")
+            return df_new_data  # Retourner seulement les nouvelles données
+        
+        if 'Réf.WEB' not in df_new_data.columns:
+            print("ERREUR: La colonne 'Réf.WEB' n'existe pas dans les nouvelles données")
+            return df_old  # Retourner seulement les anciennes données
+        
+        print(f"Nouvelles données: {len(df_new_data)} lignes")
+        print(f"Colonnes anciennes: {list(df_old.columns)}")
+        print(f"Colonnes nouvelles: {list(df_new_data.columns)}")
+        
+        # Identifier les doublons (même Réf.WEB)
+        old_refs = set(df_old['Réf.WEB'].dropna())
+        new_refs = set(df_new_data['Réf.WEB'].dropna())
+        duplicates = old_refs.intersection(new_refs)
+        
+        print(f"Références déjà présentes (doublons évités): {len(duplicates)}")
+        if duplicates:
+            print(f"Exemples de doublons: {list(duplicates)[:5]}")
+        
+        # Filtrer les nouvelles données pour exclure les doublons
+        df_new_data_filtered = df_new_data[~df_new_data['Réf.WEB'].isin(duplicates)]
+        print(f"Nouvelles données après filtrage des doublons: {len(df_new_data_filtered)} lignes")
+        
+        # Harmoniser les colonnes (s'assurer que les deux DataFrame ont les mêmes colonnes)
+        old_columns = set(df_old.columns)
+        new_columns = set(df_new_data_filtered.columns)
+        
+        # Ajouter les colonnes manquantes avec des valeurs vides
+        for col in new_columns - old_columns:
+            df_old[col] = ''
+            print(f"Colonne '{col}' ajoutée à l'ancien fichier")
+        
+        for col in old_columns - new_columns:
+            df_new_data_filtered[col] = ''
+            print(f"Colonne '{col}' ajoutée aux nouvelles données")
+        
+        # Réordonner les colonnes pour qu'elles correspondent
+        common_columns = sorted(old_columns.union(new_columns))
+        df_old = df_old[common_columns]
+        df_new_data_filtered = df_new_data_filtered[common_columns]
+        
+        # Combiner les données
+        df_combined = pd.concat([df_old, df_new_data_filtered], ignore_index=True)
+        
+        print(f"=== RÉSULTAT COMBINAISON ===")
+        print(f"Total lignes combinées: {len(df_combined)}")
+        print(f"Anciennes données: {len(df_old)}")
+        print(f"Nouvelles données ajoutées: {len(df_new_data_filtered)}")
+        print(f"Doublons évités: {len(duplicates)}")
+        
+        return df_combined
+        
+    except Exception as e:
+        print(f"ERREUR lors de la combinaison: {e}")
+        print("Retour des nouvelles données uniquement")
+        return df_new_data
 
 @app.route('/')
 def index():
@@ -1472,7 +1586,10 @@ def index():
 def process_files():
     """Traite les fichiers uploadés et génère le tableau consolidé"""
     try:
-        # Vérification de la présence de tous les fichiers
+        # Récupérer le mode de traitement
+        processing_mode = request.form.get('processing_mode', 'new')
+        
+        # Vérification de la présence de tous les fichiers requis
         required_files = ['orders_file', 'transactions_file', 'journal_file']
         files = {}
         
@@ -1492,6 +1609,20 @@ def process_files():
             
             files[file_key] = file
         
+        # En mode combinaison, vérifier la présence du fichier ancien
+        old_file = None
+        if processing_mode == 'combine':
+            if 'old_file' not in request.files or request.files['old_file'].filename == '':
+                flash('Veuillez sélectionner un ancien fichier à compléter.')
+                return redirect(url_for('index'))
+            
+            old_file = request.files['old_file']
+            if not (old_file.filename.endswith('.xlsx') or old_file.filename.endswith('.csv')):
+                flash('L\'ancien fichier doit être au format Excel (.xlsx) ou CSV (.csv).')
+                return redirect(url_for('index'))
+            
+            files['old_file'] = old_file
+        
         # Sauvegarde temporaire des fichiers
         temp_paths = {}
         try:
@@ -1500,36 +1631,46 @@ def process_files():
                 temp_path = os.path.join(UPLOAD_FOLDER, filename)
                 file.save(temp_path)
                 temp_paths[file_key] = temp_path
-            
-            # Génération du tableau consolidé
-            df_result = generate_consolidated_billing_table(
-                temp_paths['orders_file'],                temp_paths['transactions_file'], 
+              # Génération des nouvelles données
+            df_new_data = generate_consolidated_billing_table(
+                temp_paths['orders_file'],
+                temp_paths['transactions_file'], 
                 temp_paths['journal_file']
             )
             
-            # Création du fichier de sortie avec timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_filename = f'tableau_facturation_final_{timestamp}.csv'
+            # Traitement selon le mode
+            if processing_mode == 'combine' and old_file:
+                # Mode combinaison : fusionner avec l'ancien fichier
+                old_file_path = os.path.join(UPLOAD_FOLDER, secure_filename(old_file.filename))
+                old_file.save(old_file_path)
+                temp_paths['old_file'] = old_file_path
+                
+                df_result = combine_with_old_file(df_new_data, old_file_path)
+                flash(f'Tableau combiné avec succès! {len(df_new_data)} nouvelles lignes ajoutées. Total: {len(df_result)} lignes.', 'success')
+            else:
+                # Mode nouveau fichier
+                df_result = df_new_data
+                flash(f'Tableau généré avec succès! {len(df_result)} lignes traitées.', 'success')
+            
+            # Création du fichier de sortie avec timestamp au format DD_MM_YYYY
+            timestamp = datetime.now().strftime('%d_%m_%Y')
+            if processing_mode == 'combine':
+                output_filename = f'Compta_LCDI_Shopify_COMBINE_{timestamp}.csv'
+            else:
+                output_filename = f'Compta_LCDI_Shopify_{timestamp}.csv'
             output_path = os.path.join(OUTPUT_FOLDER, output_filename)
               # Sauvegarde avec formatage conditionnel (Excel) ou CSV si pas possible
             final_path, is_excel = save_with_conditional_formatting(df_result, output_path)
             
             if is_excel:
                 flash(f'Tableau Excel généré avec succès! {len(df_result)} lignes traitées. Les informations manquantes sont en rouge clair.', 'success')
-                mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 download_filename = os.path.basename(final_path)
             else:
                 flash(f'Tableau CSV généré avec succès! {len(df_result)} lignes traitées.', 'success')
-                mimetype = 'text/csv'
                 download_filename = os.path.basename(final_path)
             
-            # Téléchargement automatique du fichier
-            return send_file(
-                final_path, 
-                as_attachment=True, 
-                download_name=download_filename,
-                mimetype=mimetype
-            )
+            # Rediriger vers la page de succès qui gère le téléchargement automatique
+            return redirect(url_for('success_page', filename=download_filename))
             
         finally:
             # Nettoyage des fichiers temporaires
@@ -1617,21 +1758,51 @@ def save_with_conditional_formatting(df_result, output_path):
                     if pd.isna(df_value) or df_value == '' or df_value is None:
                         cell.fill = missing_fill
                         # Laisser la cellule vide (pas de texte)
-                        cell.value = None
-                
-                # 2. Formatage de la colonne Statut
+                        cell.value = None                # 2. Formatage et formules dynamiques de la colonne Statut
                 elif col_idx == statut_col_idx and statut_col_idx is not None:
-                    if cell.value == 'COMPLET':
-                        cell.fill = complete_fill
-                    elif cell.value == 'INCOMPLET':
+                    # Calculer la ligne Excel (en commençant à 2 car ligne 1 = en-têtes)
+                    excel_row = row_idx + 2
+                    
+                    # Identifier les colonnes nécessaires pour la formule
+                    ref_lmb_col = None
+                    reste_col = None
+                    
+                    # Fonction pour convertir index en lettre(s) Excel
+                    def col_index_to_letter(index):
+                        """Convertit un index de colonne (0-based) en lettre(s) Excel"""
+                        letter = ""
+                        while index >= 0:
+                            letter = chr(index % 26 + 65) + letter
+                            index = index // 26 - 1
+                        return letter
+                    
+                    for i, col_name in enumerate(header_row):
+                        if col_name == 'Réf. LMB':
+                            ref_lmb_col = col_index_to_letter(i)
+                        elif col_name == 'reste':
+                            reste_col = col_index_to_letter(i)
+                    
+                    # Créer la formule Excel dynamique
+                    if ref_lmb_col and reste_col:
+                        # Formule: SI ET les conditions sont remplies, alors "COMPLET", sinon "INCOMPLET"
+                        # Conditions: Réf. LMB non vide ET reste = 0
+                        formula = f'=IF(AND({ref_lmb_col}{excel_row}<>"",{reste_col}{excel_row}=0),"COMPLET","INCOMPLET")'
+                        cell.value = formula
+                        print(f"DEBUG: Formule ajoutée ligne {excel_row}: {formula}")
+                        
+                        # Appliquer un formatage neutre car le formatage conditionnel sera géré par Excel
+                        cell.fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")  # Blanc
+                    else:
+                        # Fallback si colonnes non trouvées
+                        cell.value = "INCOMPLET"
                         cell.fill = incomplete_fill
+                        print(f"DEBUG: Colonnes non trouvées pour formule, fallback ligne {excel_row}")
                 
                 # 3. Formatage de la colonne Shopify (texte rouge)
                 elif col_idx == shopify_col_idx and shopify_col_idx is not None:
                     if cell.value is not None and cell.value != 0:
                         cell.font = shopify_content_font
-        
-        # Ajuster la largeur des colonnes
+          # Ajuster la largeur des colonnes
         for column in ws.columns:
             max_length = 0
             column_letter = column[0].column_letter
@@ -1643,6 +1814,35 @@ def save_with_conditional_formatting(df_result, output_path):
                     pass
             adjusted_width = min(max_length + 2, 50)  # Max 50 caractères
             ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Appliquer le formatage conditionnel pour la colonne Statut
+        if statut_col_idx is not None:
+            from openpyxl.formatting.rule import CellIsRule
+            
+            # Convertir l'index de colonne en lettre Excel
+            def col_index_to_letter(index):
+                letter = ""
+                while index >= 0:
+                    letter = chr(index % 26 + 65) + letter
+                    index = index // 26 - 1
+                return letter
+            
+            statut_col_letter = col_index_to_letter(statut_col_idx)
+            
+            # Définir la plage de la colonne Statut (de ligne 2 à la dernière ligne)
+            statut_range = f"{statut_col_letter}2:{statut_col_letter}{ws.max_row}"
+            
+            # Règle pour "COMPLET" - fond vert
+            rule_complet = CellIsRule(operator='equal', formula=['"COMPLET"'], fill=complete_fill)
+            
+            # Règle pour "INCOMPLET" - fond rouge
+            rule_incomplet = CellIsRule(operator='equal', formula=['"INCOMPLET"'], fill=incomplete_fill)
+            
+            # Appliquer les règles de formatage conditionnel
+            ws.conditional_formatting.add(statut_range, rule_complet)
+            ws.conditional_formatting.add(statut_range, rule_incomplet)
+            
+            print(f"DEBUG: Formatage conditionnel appliqué à la plage {statut_range}")
         
         # Figer la première ligne (en-têtes de colonnes) pour qu'elle reste visible lors du défilement
         ws.freeze_panes = 'A2'  # Fige tout ce qui est au-dessus de la ligne 2 (donc la ligne 1 avec les en-têtes)
@@ -1665,6 +1865,48 @@ def save_with_conditional_formatting(df_result, output_path):
         print(f"⚠️ Erreur lors de la création Excel : {e}")
         df_result.to_csv(output_path, sep=';', decimal=',', index=False, encoding='utf-8-sig')
         return output_path, False
+
+@app.route('/success/<filename>')
+def success_page(filename):
+    """Page de succès qui gère le téléchargement automatique et le rechargement"""
+    file_path = os.path.join(OUTPUT_FOLDER, filename)
+    
+    if os.path.exists(file_path):
+        # Déterminer le type MIME
+        if filename.endswith('.xlsx'):
+            mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        else:
+            mimetype = 'text/csv'
+        
+        return render_template('success.html', 
+                             filename=filename, 
+                             file_path=url_for('download_file', filename=filename),
+                             mimetype=mimetype)
+    else:
+        flash('Fichier non trouvé.', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    """Route pour télécharger le fichier généré"""
+    file_path = os.path.join(OUTPUT_FOLDER, filename)
+    
+    if os.path.exists(file_path):
+        # Déterminer le type MIME
+        if filename.endswith('.xlsx'):
+            mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        else:
+            mimetype = 'text/csv'
+        
+        return send_file(
+            file_path, 
+            as_attachment=True, 
+            download_name=filename,
+            mimetype=mimetype
+        )
+    else:
+        flash('Fichier non trouvé.', 'error')
+        return redirect(url_for('index'))
 
 if __name__ == '__main__':
     print("=== DÉMARRAGE DE L'APPLICATION ===")

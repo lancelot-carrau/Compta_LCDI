@@ -364,7 +364,7 @@
                         <div class="file-card">
                             <div class="file-card-header">
                                 <div class="file-card-title">💳 Fichier des transactions</div>
-                                <div class="file-card-subtitle">Export Shopify : payment_transactions_export_X.csv</div>
+                                <div class="file-card-subtitle">Export Shopify : transactions_export_X.csv</div>
                             </div>
                             <div class="form-group">
                                 <label for="transactions_file">Fichier des transactions</label>
@@ -385,7 +385,7 @@
                         <div class="file-card">
                             <div class="file-card-header">
                                 <div class="file-card-title">📋 Fichier journal</div>
-                                <div class="file-card-subtitle">Export comptable : X_journal.csv</div>
+                                <div class="file-card-subtitle">Export comptable : journal_X.csv</div>
                             </div>
                             <div class="form-group">
                                 <label for="journal_file">Fichier journal</label>
@@ -539,7 +539,9 @@
                     
                     checkAllFilesSelected();
                 });
-            });            // Validation du formulaire
+            });
+
+            // Validation du formulaire
             form.addEventListener('submit', function(e) {
                 const currentMode = document.querySelector('input[name="processing_mode"]:checked').value;
                 const requiredFiles = Array.from(fileInputs);
@@ -559,8 +561,6 @@
                 // Afficher un message de traitement
                 submitBtn.disabled = true;
                 submitBtnText.textContent = '⏳ Traitement en cours...';
-                
-                // Le rechargement sera géré automatiquement par la page de succès
             });
 
             // Gestion du glisser-déposer

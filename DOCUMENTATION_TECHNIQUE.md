@@ -70,6 +70,70 @@ Analyse la méthode de paiement et répartit le montant TTC.
 - Younited (recherche "younited")
 - PayPal (recherche "paypal")
 
+### `calculate_corrected_amounts(df_merged_final)`
+
+**NOUVELLE LOGIQUE DE FALLBACK CONDITIONNEL**
+
+Calcule les montants TTC, HT et TVA avec une logique stricte et un fallback conditionnel.
+
+#### Priorité 1 : Données du Journal (Priorité Absolue)
+- **TTC** : Utilise "Montant du document TTC" du journal
+- **HT** : Utilise "Montant du document HT" du journal
+- **TVA** : Calculée automatiquement (TTC - HT) si les deux montants journal sont disponibles
+
+#### Priorité 2 : Fallback Conditionnel depuis les Commandes
+Le fallback ne s'applique que si **TOUTES** ces conditions sont remplies simultanément :
+1. TTC est vide (pas de données journal)
+2. HT est vide (pas de données journal)  
+3. TVA est vide (pas de données journal)
+
+**Note importante :** Le statut de Shopify (Net) n'influence pas le fallback. Même si Shopify contient un montant, le fallback peut s'appliquer tant que les montants TTC, HT et TVA sont vides.
+
+**Uniquement dans ce cas**, l'application utilise :
+- **TTC** : Colonne "Total" des commandes
+- **TVA** : Colonne "Taxes" des commandes
+- **HT** : Calculé automatiquement (Total - Taxes)
+
+#### Priorité 3 : Cellules Vides (Formatage Rouge)
+Si aucune des conditions précédentes n'est remplie, les cellules restent vides (NaN) et seront formatées en rouge dans Excel.
+
+#### Exemples Pratiques
+
+**Cas 1 : Données Journal Complètes (Priorité Absolue)**
+```
+Journal TTC: 100.00 € | Journal HT: 83.33 €
+Commandes Total: 99.99 € | Commandes Taxes: 16.66 €
+Shopify Net: 95.00 €
+→ Résultat: TTC=100.00, HT=83.33, TVA=16.67
+→ Commandes et Shopify IGNORÉS (priorité journal)
+```
+
+**Cas 2 : Fallback Appliqué (Conditions Remplies)**
+```
+Journal TTC: vide | Journal HT: vide
+Shopify Net: 95.00 € (présent mais n'empêche pas le fallback)
+Commandes Total: 99.99 € | Commandes Taxes: 16.66 €
+→ Résultat: TTC=99.99, HT=83.33, TVA=16.66
+```
+
+**Cas 3 : Fallback NON Appliqué (Données Journal Partielles)**
+```
+Journal TTC: 100.00 € | Journal HT: vide
+Shopify Net: 95.00 €
+Commandes Total: 99.99 € | Commandes Taxes: 16.66 €
+→ Résultat: TTC=100.00, HT=vide, TVA=vide
+→ Fallback NON appliqué car TTC journal est présent
+```
+
+**Cas 4 : Cellules Vides (Pas de Données Commandes)**
+```
+Journal TTC: vide | Journal HT: vide
+Shopify Net: 95.00 €
+Commandes Total: vide | Commandes Taxes: vide
+→ Résultat: TTC=vide, HT=vide, TVA=vide (formatage rouge)
+→ Fallback NON appliqué car pas de données commandes
+```
+
 ## API Flask
 
 ### Routes
