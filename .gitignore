@@ -89,6 +89,10 @@ venv.bak/
 .env.local
 .env.production
 
+# Docker
+docker-compose.override.yml
+.docker/
+
 # Spyder project settings
 .spyderproject
 .spyproject

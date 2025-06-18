@@ -1,0 +1,65 @@
+# Fichier .dockerignore pour optimiser la construction de l'image
+
+# Environnements virtuels Python
+.venv/
+venv/
+env/
+.env.local
+.env.production
+
+# Fichiers Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Fichiers de développement
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Fichiers temporaires
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Fichiers de build
+build/
+dist/
+*.egg-info/
+
+# Documentation de développement
+*.md
+!README.md
+
+# Scripts de déploiement
+deploy.sh
+deploy.ps1
+start.bat
+
+# Fichiers générés (seront recréés par l'app)
+uploads/*
+!uploads/.gitkeep
+output/*
+!output/.gitkeep
+
+# Fichiers de test
+test_*
+*_test.py
+tests/
+
+# Fichiers de configuration locale
+.env
+docker-compose.override.yml
