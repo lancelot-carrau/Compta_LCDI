@@ -2043,13 +2043,14 @@ if __name__ == '__main__':
     logger.info(f"Dossier static: {app.static_folder}")
     logger.info("=" * 50)
     
-    # Ouvrir automatiquement le navigateur
-    open_browser()
+    # Ouvrir automatiquement le navigateur seulement si ce n'est pas un redémarrage de Flask
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        open_browser()
     
     try:
         logger.info("Démarrage du serveur Flask...")
         logger.info("Le navigateur va s'ouvrir automatiquement dans quelques secondes...")
-        app.run(debug=True, host='0.0.0.0', port=port)
+        app.run(debug=False, host='0.0.0.0', port=port)
     except Exception as e:
         logger.error(f"Erreur lors du démarrage du serveur: {e}", exc_info=True)
         input("Appuyez sur Entrée pour fermer...")  # Pour éviter que la fenêtre se ferme immédiatement
