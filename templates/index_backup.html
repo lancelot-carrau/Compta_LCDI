@@ -446,130 +446,12 @@
 
             .header h1 {
                 font-size: 1.8em;
-            }            .submit-btn {
+            }
+
+            .submit-btn {
                 font-size: 16px;
                 padding: 16px;
             }
-        }
-
-        /* Styles pour le mode debug */
-        .debug-section {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .debug-header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-            color: white;
-            border-radius: 12px;
-        }
-
-        .debug-header h2 {
-            margin-bottom: 10px;
-            font-size: 1.5em;
-        }
-
-        .debug-header p {
-            opacity: 0.9;
-            font-size: 1.1em;
-        }
-
-        .debug-results {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            border: 1px solid #dee2e6;
-        }
-
-        .debug-results h3 {
-            color: #495057;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .debug-file-result {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-        }
-
-        .debug-file-header {
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 10px;
-            font-size: 1.1em;
-        }
-
-        .debug-method {
-            margin: 10px 0;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            border-left: 3px solid #28a745;
-        }
-
-        .debug-method.failed {
-            border-left-color: #dc3545;
-            background: #fff5f5;
-        }
-
-        .debug-method-name {
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 5px;
-        }
-
-        .debug-text-preview {
-            background: #e9ecef;
-            padding: 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.85em;
-            max-height: 100px;
-            overflow-y: auto;
-            margin: 5px 0;
-        }
-
-        .debug-parsing-result {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 5px 0;
-        }
-
-        .debug-parsing-result.failed {
-            background: #f8d7da;
-            border-color: #f5c6cb;
-        }
-
-        .debug-recommendations {
-            margin-top: 20px;
-            padding: 15px;
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-        }
-
-        .debug-recommendations h4 {
-            color: #856404;
-            margin-bottom: 10px;
-        }
-
-        .debug-recommendations ul {
-            margin: 0;
-            padding-left: 20px;
-        }
-
-        .debug-recommendations li {
-            margin: 5px 0;
-            color: #856404;
         }
     </style>
 </head>
@@ -579,7 +461,9 @@
             <h1>📊 Générateur de Tableau de Facturation LCDI</h1>
             <p>Consolidation automatique des données Shopify & Extraction PDF</p>
             <p><strong>Version 2.0</strong> - Fusion intelligente avec détection de doublons</p>
-        </div>        <!-- Navigation par onglets -->
+        </div>
+
+        <!-- Navigation par onglets -->
         <div class="tabs-container">
             <div class="tabs-nav">
                 <button type="button" class="tab-button active" onclick="switchTab('files-merger')">
@@ -587,9 +471,6 @@
                 </button>
                 <button type="button" class="tab-button" onclick="switchTab('pdf-extractor')">
                     📄 Extracteur PDF
-                </button>
-                <button type="button" class="tab-button" onclick="switchTab('debug-mode')">
-                    🔧 Mode Debug
                 </button>
             </div>
 
@@ -787,59 +668,23 @@
                             </div>
                             <div class="progress-details" id="pdfProgressDetails" style="display: none;">
                                 <div class="progress-text" id="pdfCurrentFile">Préparation...</div>
-                                <div class="progress-stats" id="pdfProgressStats">0 / 0 fichiers traités</div>                            </div>
-                            <button type="submit" id="pdfSubmitBtn" class="submit-btn">
-                                <span id="pdfSubmitBtnText">📊 Générer le tableau</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>            </div>
-            <!-- Fin de l'onglet Extracteur PDF -->
-
-            <!-- Contenu de l'onglet Mode Debug -->
-            <div id="debug-mode" class="tab-content">
-                <div class="debug-section">
-                    <div class="debug-header">
-                        <h2>🔧 Mode Debug Avancé</h2>
-                        <p>Analysez en détail l'extraction des données PDF pour diagnostiquer les problèmes</p>
-                    </div>
-                    
-                    <form id="debugForm" enctype="multipart/form-data">
-                        <div class="form-section">
-                            <h3>📄 Fichiers PDF à analyser</h3>
-                            <div class="file-card drag-drop-zone" 
-                                 ondrop="handleDebugDrop(event)" 
-                                 ondragover="allowDrop(event)" 
-                                 ondragenter="handleDragEnter(event)" 
-                                 ondragleave="handleDragLeave(event)">
-                                <div class="file-icon">📄</div>
-                                <div class="file-content">
-                                    <h4>Glissez-déposez vos factures PDF ici</h4>
-                                    <p>Ou cliquez pour sélectionner (max 5 fichiers pour le debug)</p>
-                                    <input type="file" id="debug_pdf_files" name="debug_pdf_files" 
-                                           accept=".pdf" multiple style="display: none;">
-                                    <div class="file-status" id="debug-pdf-status">
-                                        <span class="status-text">Aucun fichier sélectionné</span>
-                                    </div>
-                                </div>
+                                <div class="progress-stats" id="pdfProgressStats">0 / 0 fichiers traités</div>
                             </div>
+                            <div class="progress-text" id="pdfProgressText">Prêt à traiter les factures Amazon</div>
+                            <button type="submit" id="pdfSubmitBtn" class="submit-btn">
+                                <span id="pdfSubmitBtnText">� Générer le tableau</span>
+                            </button>
                         </div>
-                        
-                        <div class="submit-section">
-                            <button type="submit" id="debugSubmitBtn" class="submit-btn">
-                                🔍 Analyser les PDF
+                            </div>
+                            <div class="progress-text" id="pdfProgressText">Prêt à traiter les factures Amazon</div>
+                            <button type="submit" id="pdfSubmitBtn" class="submit-btn">
+                                <span id="pdfSubmitBtnText">� Générer le tableau</span>
                             </button>
                         </div>
                     </form>
-                    
-                    <!-- Résultats du debug -->
-                    <div id="debugResults" class="debug-results" style="display: none;">
-                        <h3>📊 Résultats de l'analyse</h3>
-                        <div id="debugContent"></div>
-                    </div>
                 </div>
             </div>
-            <!-- Fin de l'onglet Mode Debug -->
+            <!-- Fin de l'onglet Extracteur PDF -->
         </div>
         <!-- Fin des onglets -->
     </div>
@@ -1176,40 +1021,33 @@
             // Gestion de la sélection multiple de fichiers PDF
             if (pdfFilesInput) {
                 pdfFilesInput.addEventListener('change', function() {
-                    const files = this.files;                    if (files.length > 0) {
+                    const files = this.files;
+                    if (files.length > 0) {
                         let totalSize = 0;
-                        if (pdfFilesPreview) pdfFilesPreview.innerHTML = '';
+                        pdfFilesPreview.innerHTML = '';
                         
                         for (let i = 0; i < files.length; i++) {
                             const file = files[i];
                             totalSize += file.size;
-                            if (pdfFilesPreview) {
-                                const li = document.createElement('li');
-                                li.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-                                pdfFilesPreview.appendChild(li);
-                            }
+                            const li = document.createElement('li');
+                            li.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                            pdfFilesPreview.appendChild(li);
                         }
                         
                         const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
-                        if (pdfStatus) {
-                            pdfStatus.innerHTML = `<span class="status-text">✅ ${files.length} fichier(s) sélectionné(s) (${totalSizeMB} MB total)</span>`;
-                            pdfStatus.style.color = '#28a745';
-                        }
-                        if (pdfFileList) pdfFileList.style.display = 'block';
+                        pdfStatus.innerHTML = `<span class="status-text">✅ ${files.length} fichier(s) sélectionné(s) (${totalSizeMB} MB total)</span>`;
+                        pdfStatus.style.color = '#28a745';
+                        pdfFileList.style.display = 'block';
                         
                         if (files.length > 300) {
-                            if (pdfStatus) {
-                                pdfStatus.innerHTML = `<span class="status-text">⚠️ Trop de fichiers sélectionnés (max: 300)</span>`;
-                                pdfStatus.style.color = '#dc3545';
-                            }
-                            if (pdfFileList) pdfFileList.style.display = 'none';
+                            pdfStatus.innerHTML = `<span class="status-text">⚠️ Trop de fichiers sélectionnés (max: 300)</span>`;
+                            pdfStatus.style.color = '#dc3545';
+                            pdfFileList.style.display = 'none';
                         }
                     } else {
-                        if (pdfStatus) {
-                            pdfStatus.innerHTML = '<span class="status-text">Aucun fichier sélectionné</span>';
-                            pdfStatus.style.color = '#666';
-                        }
-                        if (pdfFileList) pdfFileList.style.display = 'none';
+                        pdfStatus.innerHTML = '<span class="status-text">Aucun fichier sélectionné</span>';
+                        pdfStatus.style.color = '#666';
+                        pdfFileList.style.display = 'none';
                     }
                     checkPdfFilesReady();
                 });
@@ -1271,8 +1109,10 @@
                         }
                     });
                 }
-            }            // Gestion du fichier Excel existant
-            if (pdfOldFileInput && pdfOldStatus) {
+            }
+
+            // Gestion du fichier Excel existant
+            if (pdfOldFileInput) {
                 pdfOldFileInput.addEventListener('change', function() {
                     const file = this.files[0];
                     if (file) {
@@ -1288,13 +1128,12 @@
 
             // Vérifier si tous les fichiers requis sont prêts
             function checkPdfFilesReady() {
-                if (!pdfSubmitBtn || !pdfSubmitBtnText || !pdfFilesInput) return;
-                
-                const currentMode = document.querySelector('input[name="pdf_processing_mode"]:checked')?.value || 'new';
+                const currentMode = document.querySelector('input[name="pdf_processing_mode"]:checked').value;
                 const hasPdfFiles = pdfFilesInput && pdfFilesInput.files.length > 0 && pdfFilesInput.files.length <= 300;
                 const hasOldFile = currentMode !== 'combine' || (pdfOldFileInput && pdfOldFileInput.files.length > 0);
-                  if (hasPdfFiles && hasOldFile) {
-                    pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                
+                if (hasPdfFiles && hasOldFile) {
+                    pdfSubmitBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
                     const fileCount = pdfFilesInput.files.length;
                     if (currentMode === 'combine') {
                         pdfSubmitBtnText.textContent = `✅ Prêt à traiter ${fileCount} facture(s) et combiner`;
@@ -1303,7 +1142,7 @@
                     }
                 } else {
                     pdfSubmitBtn.style.background = 'linear-gradient(135deg, #6c757d 0%, #495057 100%)';
-                    pdfSubmitBtnText.textContent = '📊 Générer le tableau';
+                    pdfSubmitBtnText.textContent = '� Générer le tableau';
                 }
             }
 
@@ -1376,23 +1215,18 @@
                         body: formData
                     })
                     .then(response => response.json())
-                    .then(data => {                        clearInterval(progressInterval);
-                        if (pdfProgressFill) pdfProgressFill.style.width = '100%';
+                    .then(data => {
+                        clearInterval(progressInterval);
+                        pdfProgressFill.style.width = '100%';
                         
                         if (data.success) {
                             const stats = data.statistics;
-                            if (pdfProgressText) {
-                                pdfProgressText.innerHTML = `✅ Extraction terminée ! ${stats.processed_successfully}/${stats.total_files} fichiers traités avec succès`;
-                            }
-                            if (pdfSubmitBtnText) {
-                                pdfSubmitBtnText.textContent = '✅ Traitement terminé !';
-                            }
-                            if (pdfSubmitBtn) {
-                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                            }
+                            pdfProgressText.innerHTML = `✅ Extraction terminée ! ${stats.processed_successfully}/${stats.total_files} fichiers traités avec succès`;
+                            pdfSubmitBtnText.textContent = '✅ Traitement terminé !';
+                            pdfSubmitBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
                             
                             // Mise à jour des détails de progression
-                            if (pdfProgressDetails && pdfCurrentFile && pdfProgressStats) {
+                            if (pdfProgressDetails) {
                                 pdfCurrentFile.textContent = `Résultats: ${stats.total_invoices_in_excel} factures dans le fichier Excel`;
                                 pdfProgressStats.textContent = `${stats.processed_successfully} / ${stats.total_files} fichiers traités`;
                             }
@@ -1410,14 +1244,15 @@
                                 downloadLink.href = data.download_url;
                                 downloadLink.download = data.filename;
                                 downloadLink.click();
-                                  // Reset du formulaire après 3 secondes
+                                
+                                // Reset du formulaire après 3 secondes
                                 setTimeout(() => {
                                     pdfForm.reset();
                                     pdfSubmitBtn.disabled = false;
-                                    pdfSubmitBtnText.textContent = '📊 Générer le tableau';
+                                    pdfSubmitBtnText.textContent = '� Générer le tableau';
                                     pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                                     pdfProgressFill.style.width = '0%';
-                                    pdfProgressText.textContent = 'Prêt à générer le tableau';
+                                    pdfProgressText.textContent = 'Prêt à traiter les factures Amazon';
                                     if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
                                     
                                     // Reset des status de fichier
@@ -1435,35 +1270,31 @@
                                         pdfOldStatus.style.color = '#666';
                                     }
                                 }, 3000);
-                            }, 1500);                        } else {
-                            if (pdfProgressText) {
-                                pdfProgressText.innerHTML = `❌ Erreur: ${data.error}`;
-                            }
-                            if (pdfSubmitBtnText) {
-                                pdfSubmitBtnText.textContent = '❌ Erreur de traitement';
-                            }
-                            if (pdfSubmitBtn) {
-                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
-                            }
+                            }, 1500);
+                        } else {
+                            pdfProgressText.innerHTML = `❌ Erreur: ${data.error}`;
+                            pdfSubmitBtnText.textContent = '❌ Erreur de traitement';
+                            pdfSubmitBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
                             
-                            if (pdfProgressDetails && pdfCurrentFile && pdfProgressStats) {
+                            if (pdfProgressDetails) {
                                 pdfCurrentFile.textContent = 'Erreur de traitement';
                                 pdfProgressStats.textContent = 'Traitement interrompu';
                             }
-                              // Afficher les détails d'erreur s'ils existent
+                            
+                            // Afficher les détails d'erreur s'ils existent
                             if (data.processing_errors && data.processing_errors.length > 0) {
                                 console.error('Erreurs détaillées:', data.processing_errors);
                                 const errorSummary = data.processing_errors.slice(0, 3).join('; ');
-                                if (pdfProgressText) {
-                                    pdfProgressText.innerHTML += `<br><small>${errorSummary}</small>`;
-                                }
+                                pdfProgressText.innerHTML += `<br><small>${errorSummary}</small>`;
                             }
-                              // Reset après 8 secondes
+                            
+                            // Reset après 8 secondes
                             setTimeout(() => {
                                 pdfSubmitBtn.disabled = false;
-                                pdfSubmitBtnText.textContent = '📊 Générer le tableau';
-                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';                                pdfProgressFill.style.width = '0%';
-                                pdfProgressText.textContent = 'Prêt à générer le tableau';
+                                pdfSubmitBtnText.textContent = '� Générer le tableau';
+                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                                pdfProgressFill.style.width = '0%';
+                                pdfProgressText.textContent = 'Prêt à traiter les factures Amazon';
                                 if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
                             }, 8000);
                         }
@@ -1471,336 +1302,25 @@
                     .catch(error => {
                         clearInterval(progressInterval);
                         console.error('Erreur:', error);
-                        if (pdfProgressText) {
-                            pdfProgressText.innerHTML = '❌ Erreur de connexion';
-                        }
-                        if (pdfSubmitBtnText) {
-                            pdfSubmitBtnText.textContent = '❌ Erreur de connexion';
-                        }
+                        pdfProgressText.innerHTML = '❌ Erreur de connexion';
+                        pdfSubmitBtnText.textContent = '❌ Erreur de connexion';
                         pdfSubmitBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
                         
-                        if (pdfProgressDetails && pdfCurrentFile && pdfProgressStats) {
+                        if (pdfProgressDetails) {
                             pdfCurrentFile.textContent = 'Erreur de connexion';
                             pdfProgressStats.textContent = 'Connexion interrompue';
-                        }                        // Reset après 5 secondes
-                        setTimeout(() => {
-                            if (pdfSubmitBtn) {
-                                pdfSubmitBtn.disabled = false;
-                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                            }
-                            if (pdfSubmitBtnText) {
-                                pdfSubmitBtnText.textContent = '📊 Générer le tableau';
-                            }
-                            if (pdfProgressFill) {
-                                pdfProgressFill.style.width = '0%';
-                            }
-                            if (pdfProgressText) {
-                                pdfProgressText.textContent = 'Prêt à générer le tableau';
-                            }
-                            if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
-                        }, 5000);
-                    })
-                    .catch(error => {
-                        clearInterval(progressInterval);
-                        console.error('Erreur:', error);
-                        if (pdfProgressText) {
-                            pdfProgressText.innerHTML = '❌ Erreur de connexion';
-                        }
-                        if (pdfSubmitBtnText) {
-                            pdfSubmitBtnText.textContent = '❌ Erreur';
                         }
                         
                         // Reset après 5 secondes
                         setTimeout(() => {
                             pdfSubmitBtn.disabled = false;
-                            pdfSubmitBtnText.textContent = '📊 Générer le tableau';
+                            pdfSubmitBtnText.textContent = '� Générer le tableau';
                             pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                             pdfProgressFill.style.width = '0%';
-                            pdfProgressText.textContent = 'Prêt à générer le tableau';
+                            pdfProgressText.textContent = 'Prêt à traiter les factures Amazon';
                             if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
                         }, 5000);
                     });
-                });
-            }
-        });
-
-        // =====================================================================
-        // GESTION DU MODE DEBUG
-        // =====================================================================
-        
-        // Gestion du drag & drop pour le debug
-        function handleDebugDrop(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const dropZone = event.target.closest('.drag-drop-zone');
-            dropZone.classList.remove('drag-over');
-            
-            const files = event.dataTransfer.files;
-            const debugInput = document.getElementById('debug_pdf_files');
-            debugInput.files = files;
-            
-            updateDebugFileStatus(files);
-        }
-        
-        function updateDebugFileStatus(files) {
-            const statusElement = document.getElementById('debug-pdf-status');
-            const statusText = statusElement.querySelector('.status-text');
-            
-            if (files && files.length > 0) {
-                const fileList = Array.from(files)
-                    .slice(0, 5) // Limite à 5 fichiers
-                    .map(file => file.name)
-                    .join(', ');
-                
-                statusText.innerHTML = `✅ ${files.length} fichier(s) sélectionné(s):<br><small>${fileList}</small>`;
-                statusElement.style.color = '#28a745';
-            } else {
-                statusText.textContent = 'Aucun fichier sélectionné';
-                statusElement.style.color = '#6c757d';
-            }
-        }
-        
-        // Gestionnaire de soumission du formulaire debug
-        document.addEventListener('DOMContentLoaded', function() {
-            const debugForm = document.getElementById('debugForm');
-            const debugInput = document.getElementById('debug_pdf_files');
-            const debugSubmitBtn = document.getElementById('debugSubmitBtn');
-            const debugResults = document.getElementById('debugResults');
-            
-            // Clic sur la zone de drop pour ouvrir le sélecteur
-            document.querySelector('#debug-mode .drag-drop-zone').addEventListener('click', function() {
-                debugInput.click();
-            });
-            
-            // Changement de fichier
-            debugInput.addEventListener('change', function() {
-                updateDebugFileStatus(this.files);
-            });
-            
-            // Soumission du formulaire
-            debugForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                if (!debugInput.files || debugInput.files.length === 0) {
-                    alert('Veuillez sélectionner au moins un fichier PDF à analyser.');
-                    return;
-                }
-                  const formData = new FormData();
-                // Ajouter le fichier avec le bon nom
-                formData.append('debug_pdf_files', debugInput.files[0]);
-                
-                // Ajouter la méthode d'extraction
-                const extractionMethod = document.querySelector('input[name="debug_extraction_method"]:checked')?.value || 'auto';
-                formData.append('debug_extraction_method', extractionMethod);
-                
-                // Désactiver le bouton et afficher le chargement
-                debugSubmitBtn.disabled = true;
-                debugSubmitBtn.innerHTML = '🔄 Analyse en cours...';
-                debugResults.style.display = 'none';
-                
-                fetch('/debug_pdf_extraction', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    displayDebugResults(data);
-                })
-                .catch(error => {
-                    console.error('Erreur lors de l\'analyse debug:', error);
-                    alert('Erreur lors de l\'analyse. Consultez la console pour plus de détails.');
-                })
-                .finally(() => {
-                    debugSubmitBtn.disabled = false;
-                    debugSubmitBtn.innerHTML = '🔍 Analyser les PDF';
-                });
-            });
-        });
-        
-        function displayDebugResults(data) {
-            const debugResults = document.getElementById('debugResults');
-            const debugContent = document.getElementById('debugContent');
-            
-            if (!data.success) {
-                debugContent.innerHTML = `
-                    <div class="alert alert-danger">
-                        <strong>Erreur:</strong> ${data.error || 'Erreur inconnue'}
-                    </div>
-                `;
-                debugResults.style.display = 'block';
-                return;
-            }
-              let html = '';
-            
-            // Traiter un seul résultat de debug (pas un tableau)
-            const fileResult = data.debug_results;
-            
-            html += `
-                <div class="debug-file-result">
-                    <div class="debug-file-header">
-                        📄 ${fileResult.filename} (${(fileResult.file_size / 1024).toFixed(1)} KB)
-                    </div>
-                    
-                    <div class="debug-section">
-                        <h4>📊 Extraction PDF</h4>
-                        <div><strong>Méthode:</strong> ${fileResult.extraction_method}</div>
-                        <div><strong>Extraction réussie:</strong> ${fileResult.extraction_success ? '✅ Oui' : '❌ Non'}</div>
-                        <div><strong>Texte extrait:</strong> ${fileResult.text_extracted ? '✅ Oui' : '❌ Non'} (${fileResult.text_length} caractères)</div>
-                        <div><strong>Tableaux trouvés:</strong> ${fileResult.tables_found}</div>
-                        
-                        ${fileResult.errors.length > 0 ? `
-                            <div class="debug-errors">
-                                <strong>⚠️ Erreurs d'extraction:</strong>
-                                <ul>${fileResult.errors.map(err => `<li>${err}</li>`).join('')}</ul>
-                            </div>
-                        ` : ''}
-                    </div>
-                    
-                    ${fileResult.text_preview ? `
-                        <div class="debug-section">
-                            <h4>📝 Aperçu du texte extrait</h4>
-                            <div class="debug-text-preview">${fileResult.text_preview}</div>
-                        </div>
-                    ` : ''}
-                    
-                    <div class="debug-section">
-                        <h4>🔍 Parsing Amazon</h4>
-                        <div><strong>Parsing réussi:</strong> ${fileResult.parsing_success ? '✅ Oui' : '❌ Non'}</div>
-                        
-                        ${fileResult.parsing_result ? `
-                            <div class="debug-parsing-result">
-                                <strong>📋 Données extraites:</strong>
-                                <ul>
-                                    <li><strong>ID Amazon:</strong> ${fileResult.parsing_result.id_amazon || 'Non trouvé'}</li>
-                                    <li><strong>Facture Amazon:</strong> ${fileResult.parsing_result.facture_amazon || 'Non trouvé'}</li>
-                                    <li><strong>Date:</strong> ${fileResult.parsing_result.date_facture || 'Non trouvé'}</li>
-                                    <li><strong>Pays:</strong> ${fileResult.parsing_result.pays || 'Non trouvé'}</li>
-                                    <li><strong>Nom contact:</strong> ${fileResult.parsing_result.nom_contact || 'Non trouvé'}</li>
-                                    <li><strong>HT:</strong> ${fileResult.parsing_result.ht || 0}€</li>
-                                    <li><strong>TVA:</strong> ${fileResult.parsing_result.tva || 0}€</li>
-                                    <li><strong>Taux TVA:</strong> ${fileResult.parsing_result.taux_tva || 'Non trouvé'}</li>
-                                    <li><strong>Total:</strong> ${fileResult.parsing_result.total || 0}€</li>
-                                </ul>
-                            </div>
-                        ` : ''}
-                        
-                        ${fileResult.parsing_errors.length > 0 ? `
-                            <div class="debug-errors">
-                                <strong>⚠️ Erreurs de parsing:</strong>
-                                <ul>${fileResult.parsing_errors.map(err => `<li>${err}</li>`).join('')}</ul>
-                            </div>
-                        ` : ''}
-                        
-                        ${fileResult.parsing_result && fileResult.parsing_result.debug_info ? `
-                            <div class="debug-section">
-                                <h4>🔧 Informations de debug</h4>
-                                <div class="debug-info">
-                                    ${fileResult.parsing_result.debug_info.map(info => `<div>• ${info}</div>`).join('')}
-                                </div>
-                            </div>
-                        ` : ''}                    </div>
-                </div>
-            `;
-            
-            debugContent.innerHTML = html;
-            debugResults.style.display = 'block';
-        }
-
-        // Fonctions pour le mode debug
-        function handleDebugDrop(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const files = event.dataTransfer.files;
-            const debugFileInput = document.getElementById('debug_pdf_files');
-            if (debugFileInput) {
-                debugFileInput.files = files;
-                updateDebugFileStatus(files);
-            }
-            
-            // Retirer l'effet visuel de drag
-            event.target.classList.remove('dragover');
-        }
-
-        function updateDebugFileStatus(files) {
-            const debugStatus = document.getElementById('debug-pdf-status');
-            if (!debugStatus) return;
-            
-            if (files.length > 0) {
-                const fileNames = Array.from(files).slice(0, 5).map(f => f.name).join(', ');
-                const limitText = files.length > 5 ? ` (limité à 5 fichiers)` : '';
-                debugStatus.innerHTML = `<span class="status-text">${files.length} fichier(s) sélectionné(s)${limitText}</span>`;
-                debugStatus.style.color = '#28a745';
-            } else {
-                debugStatus.innerHTML = '<span class="status-text">Aucun fichier sélectionné</span>';
-                debugStatus.style.color = '#666';
-            }
-        }
-
-        // Gestionnaire de soumission du formulaire debug
-        document.addEventListener('DOMContentLoaded', function() {
-            const debugForm = document.getElementById('debugForm');
-            const debugFileInput = document.getElementById('debug_pdf_files');
-            const debugSubmitBtn = document.getElementById('debugSubmitBtn');
-            
-            if (debugForm) {
-                debugForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    if (!debugFileInput || !debugFileInput.files.length) {
-                        alert('Veuillez sélectionner au moins un fichier PDF à analyser.');
-                        return;
-                    }
-                      const formData = new FormData();
-                    // Ajouter le fichier avec le bon nom
-                    formData.append('debug_pdf_files', debugFileInput.files[0]);
-                    
-                    // Ajouter la méthode d'extraction
-                    const extractionMethod = document.querySelector('input[name="debug_extraction_method"]:checked')?.value || 'auto';
-                    formData.append('debug_extraction_method', extractionMethod);
-                    
-                    // Désactiver le bouton pendant le traitement
-                    if (debugSubmitBtn) {
-                        debugSubmitBtn.disabled = true;
-                        debugSubmitBtn.textContent = '🔍 Analyse en cours...';
-                    }
-                    
-                    fetch('/debug_pdf_extraction', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            displayDebugResults(data);
-                        } else {
-                            alert('Erreur lors de l\'analyse: ' + (data.error || 'Erreur inconnue'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Erreur:', error);
-                        alert('Erreur de communication avec le serveur: ' + error.message);
-                    })
-                    .finally(() => {
-                        // Réactiver le bouton
-                        if (debugSubmitBtn) {
-                            debugSubmitBtn.disabled = false;
-                            debugSubmitBtn.textContent = '🔍 Analyser les PDF';
-                        }
-                    });
-                });
-            }
-            
-            // Gestionnaire pour le clic sur la zone de drop debug
-            const debugDropZone = document.querySelector('#debug-mode .drag-drop-zone');
-            if (debugDropZone && debugFileInput) {
-                debugDropZone.addEventListener('click', function() {
-                    debugFileInput.click();
-                });
-                
-                debugFileInput.addEventListener('change', function() {
-                    updateDebugFileStatus(this.files);
                 });
             }
         });

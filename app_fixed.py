@@ -471,12 +471,12 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                             dates_found.append(parsed_date)
                             if not invoice_data['date_facture']:  # Prendre la première date trouvée
                                 invoice_data['date_facture'] = parsed_date
-                    else:                        # Pattern avec un seul groupe
+                    else:
+                        # Pattern avec un seul groupe
                         value = match.group(1).strip()
                         if debug_mode:
                             debug_info.append(f"Pattern '{key}' trouvé: {value}")
-                        
-                        if key == 'order_id':
+                          if key == 'order_id':
                             invoice_data['id_amazon'] = value
                         elif key == 'invoice_number':
                             invoice_data['facture_amazon'] = value

@@ -375,32 +375,19 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 r'(\d{1,2}-\d{1,2}-\d{4})',
                 r'(\d{1,2}\.\d{1,2}\.\d{4})'
             ],            'country': [
-                # Patterns pour codes postaux français spécifiquement + FR (priorité maximale)
-                r'(\d{5})\s*\n\s*(FR)\b',
-                r'(\d{5})\s+(FR)\b',
-                
-                # Patterns pour codes postaux italiens + IT
-                r'(\d{5})\s*\n\s*(IT)\b',
-                r'(\d{5})\s+(IT)\b',
-                
-                # Patterns pour codes postaux maltais + MT
-                r'([A-Z]{3}\s?\d{4})\s*\n\s*(MT)\b',
-                r'([A-Z]{3}\s?\d{4})\s+(MT)\b',
-                
-                # Patterns pour adresses avec contexte ÉVITANT les mots français/italiens
-                r'(?:Ship\s*to|Livraison|Spedire\s*a|Address|Indirizzo|Facturation|Bill\s*to)[\s\S]*?(?:\n|\s)+(FR|IT|ES|MT|NL|BE|AT|PT|CH|UK|GB)(?:\s|$|\n)',
-                
-                # Patterns pour codes pays en fin de ligne d'adresse (précis)
-                r'\n\s*(FR|IT|DE|ES|MT|NL|BE|AT|PT|CH|UK|GB)\s*(?:\n|$)',
-                
-                # Pattern de fin de ligne strict
-                r'^(FR|IT|DE|ES|MT|NL|BE|AT|PT|CH|UK|GB)\s*$',
-                
-                # Code pays isolé avec espaces autour (évite "de" dans "de la")
-                r'(?:\s|^)(FR|IT|ES|MT|NL|BE|AT|PT|CH|UK|GB)(?:\s|$|\n)',
-                
-                # Dernier recours - pattern générique (à éviter mais nécessaire pour certains cas)
-                r'\b(FR|IT|DE|ES|MT|NL|BE|AT|PT|CH|UK|GB)\b'
+                # Patterns spécifiques pour pays européens (en premier pour éviter les faux positifs)
+                r'\b(IT|FR|DE|ES|MT|NL|BE|AT|PT|CH|UK|GB)\b',
+                # Patterns pour codes postal + pays
+                r'(\d{5})\s*\n([A-Z]{2})(?:\s|$)',
+                r'(\d{5})\s*([A-Z]{2})(?:\s|$)',
+                # Patterns pour codes pays seuls en fin de ligne
+                r'\n([A-Z]{2})\s*$',
+                r'\b([A-Z]{2})\s*$',
+                # Patterns contextuels pour adresses
+                r'(?:Ship\s*to|Livraison|Spedire\s*a|Address|Indirizzo)[\s\S]*?(\d{5})\s*([A-Z]{2})',
+                r'(?:Ship\s*to|Livraison|Spedire\s*a|Address|Indirizzo)[\s\S]*?([A-Z]{2})\s*\d{4,5}',
+                # Fallback sur les patterns d'adresse
+                r'destinazione.*?([A-Z]{2})\b'
             ],'customer_name': [
                 # Pattern spécifique pour les factures italiennes
                 r'Totale da pagare.*?([A-Z][A-Z\s]+[A-Z])',
@@ -471,12 +458,12 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                             dates_found.append(parsed_date)
                             if not invoice_data['date_facture']:  # Prendre la première date trouvée
                                 invoice_data['date_facture'] = parsed_date
-                    else:                        # Pattern avec un seul groupe
+                    else:
+                        # Pattern avec un seul groupe
                         value = match.group(1).strip()
                         if debug_mode:
                             debug_info.append(f"Pattern '{key}' trouvé: {value}")
-                        
-                        if key == 'order_id':
+                          if key == 'order_id':
                             invoice_data['id_amazon'] = value
                         elif key == 'invoice_number':
                             invoice_data['facture_amazon'] = value
