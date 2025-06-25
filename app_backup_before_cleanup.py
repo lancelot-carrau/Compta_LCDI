@@ -297,8 +297,7 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
             'INV-', 'FR500', 'FR199', 'EU SARL', 'amazon.com',
             'Business EU', 'Marketplace'
         ]
-        
-        # Vérifier si au moins un mot-clé Amazon est présent
+          # Vérifier si au moins un mot-clé Amazon est présent
         has_amazon_context = any(keyword in text for keyword in amazon_keywords)
         
         if not has_amazon_context:
@@ -325,8 +324,10 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
             'total': 0.0,
             'debug_info': debug_info if debug_mode else []
         }
-          # Patterns de recherche pour les données Amazon
-        patterns = {            'order_id': [
+        
+        # Patterns de recherche pour les données Amazon - PATTERNS ULTRA-PRIORITAIRES
+        patterns = {
+            'order_id': [
                 # Pattern spécifique pour les factures italiennes Amazon
                 r'Contratto\s+(\d{3}-\d{7}-\d{7})',
                 # Patterns existants pour les autres langues
@@ -335,7 +336,8 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 r'Ordine\s*[#:]?\s*(\d{3}-\d{7}-\d{7})',
                 r'Bestellung\s*[#:]?\s*(\d{3}-\d{7}-\d{7})',
                 r'\b(\d{3}-\d{7}-\d{7})\b'
-            ],            'invoice_number': [
+            ],
+            'invoice_number': [
                 # Pattern spécifique pour les factures italiennes Amazon
                 r'Numero fattura\s+([A-Z]{2}\d{4,8}[A-Z]{2,8})',
                 # Patterns existants avec FR + chiffres + lettres
@@ -354,7 +356,8 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 r'Facture\s*[#:]?\s*(INV-[A-Z]{2}-[A-Z0-9-]+)',
                 r'Fattura\s*[#:]?\s*(INV-[A-Z]{2}-[A-Z0-9-]+)',
                 r'\b(INV-[A-Z]{2}-[A-Z0-9-]+)\b'
-            ],            'date': [
+            ],
+            'date': [
                 # Pattern spécifique pour les factures italiennes avec mois en texte
                 r'Data\s*di\s*fatturazione[^0-9]*(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})',
                 # Patterns existants pour les autres langues avec mois en texte
@@ -374,7 +377,8 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 r'(\d{1,2}/\d{1,2}/\d{4})',
                 r'(\d{1,2}-\d{1,2}-\d{4})',
                 r'(\d{1,2}\.\d{1,2}\.\d{4})'
-            ],            'country': [
+            ],
+            'country': [
                 # Patterns pour codes postaux français spécifiquement + FR (priorité maximale)
                 r'(\d{5})\s*\n\s*(FR)\b',
                 r'(\d{5})\s+(FR)\b',
@@ -401,7 +405,8 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 
                 # Dernier recours - pattern générique (à éviter mais nécessaire pour certains cas)
                 r'\b(FR|IT|DE|ES|MT|NL|BE|AT|PT|CH|UK|GB)\b'
-            ],'customer_name': [
+            ],
+            'customer_name': [
                 # Pattern spécifique pour les factures italiennes
                 r'Totale da pagare.*?([A-Z][A-Z\s]+[A-Z])',
                 # Patterns existants pour les autres langues
@@ -411,7 +416,47 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 r'Bill\s*to[:\s]+([A-Za-z\s]{3,50})',
                 r'Facturation[:\s]+([A-Za-z\s]{3,50})',
                 r'Fatturazione[:\s]+([A-Za-z\s]{3,50})'
-            ],            'total_amount': [
+            ],
+            # PATTERNS ULTRA-PRIORITAIRES POUR HT - ORDRE CRITIQUE (prendre le DERNIER match)
+            'subtotal': [
+                # Patterns ultra-prioritaires pour tableaux Amazon format français/italien
+                r'Total\s+(\d+,\d{2})\s*€\s+(\d+,\d{2})\s*€',  # Format: "Total 193,32 € 38,66 €"
+                r'(\d+)\s*%\s+(\d+,\d{2})\s*€\s+(\d+,\d{2})\s*€',  # Format: "20 % 193,32 € 38,66 €"
+                r'0%\s*€\s+(\d+,\d{2})\s*€\s+0,00',  # Format spécial TVA 0%: "0% € 93,52 € 0,00"
+                # Patterns standards existants
+                r'Subtotale[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'Subtotal[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'Sous-total[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'Sub-total[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'Net\s*Amount[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'Montant\s*HT[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'(\d+[,.]?\d{2})\s*[€]?\s*(?=.*?(?:TVA|VAT|IVA))'
+            ],
+            # PATTERNS ULTRA-PRIORITAIRES POUR TVA - ORDRE CRITIQUE (prendre le DERNIER match)
+            'tax_amount': [
+                # Patterns ultra-prioritaires pour tableaux Amazon format français/italien
+                r'Total\s+(\d+,\d{2})\s*€\s+(\d+,\d{2})\s*€',  # Format: "Total 193,32 € 38,66 €" - groupe 2 = TVA
+                r'(\d+)\s*%\s+(\d+,\d{2})\s*€\s+(\d+,\d{2})\s*€',  # Format: "20 % 193,32 € 38,66 €" - groupe 3 = TVA
+                r'0%\s*€\s+(\d+,\d{2})\s*€\s+(0,00)',  # Format spécial TVA 0%: "0% € 93,52 € 0,00" - groupe 2 = TVA (0,00)
+                # Patterns standards existants
+                r'IVA[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'Tax[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'TVA[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'VAT[:\s]+[€$]?(\d+[,.]?\d{0,2})',
+                r'(?:TVA|VAT|IVA)\s*[:\s]*(\d+[,.]?\d{0,2})\s*[€%]'
+            ],
+            # PATTERNS ULTRA-PRIORITAIRES POUR TAUX TVA - ORDRE CRITIQUE (prendre le DERNIER match)
+            'tax_rate': [
+                # Patterns ultra-prioritaires pour tableaux Amazon format français/italien
+                r'(\d+)\s*%\s+(\d+,\d{2})\s*€\s+(\d+,\d{2})\s*€',  # Format: "20 % 193,32 € 38,66 €" - groupe 1 = taux
+                r'(0)%\s*€\s+(\d+,\d{2})\s*€\s+(0,00)',  # Format spécial TVA 0%: "0% € 93,52 € 0,00" - groupe 1 = 0%
+                # Patterns standards existants (mais exclure 0% pour éviter d'écraser)
+                r'IVA\s*([1-9]\d*[,.]?\d*)\s*%',  # Exclure 0%
+                r'TVA\s*([1-9]\d*[,.]?\d*)\s*%',  # Exclure 0%
+                r'VAT\s*([1-9]\d*[,.]?\d*)\s*%',  # Exclure 0%
+                r'([1-9]\d*[,.]?\d*)\s*%'  # Pattern générique excluant 0%
+            ],
+            'total_amount': [
                 # Pattern spécifique pour les factures italiennes (priorité maximale)
                 r'Totale fattura\s+(\d+,\d{2})\s*€',
                 # Patterns spécifiques avec contexte (priorité élevée)
@@ -423,144 +468,158 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                 r'Totale\s*fattura[:\s]+[€$]?(\d+[,.]?\d{0,2})',
                 r'Totale[:\s]+(\d+[,.]?\d{0,2})\s*[€]',
                 r'(\d+[,.]?\d{2})\s*[€]?\s*(?=\s*$|\s*\n)'
-            ],'tax_amount': [
-                # Pattern spécifique pour les factures italiennes
-                r'(\d+)%\s+([\d,]+)\s*€\s+([\d,]+)\s*€',
-                # Patterns existants pour les autres langues
-                r'IVA[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'Tax[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'TVA[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'VAT[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'(?:TVA|VAT|IVA)\s*[:\s]*(\d+[,.]?\d{0,2})\s*[€%]'
-            ],
-            'tax_rate': [
-                # Pattern spécifique pour les factures italiennes
-                r'(\d+)%\s+[\d,]+\s*€\s+[\d,]+\s*€',
-                # Patterns existants
-                r'IVA\s*(\d+[,.]?\d*)\s*%',
-                r'TVA\s*(\d+[,.]?\d*)\s*%',
-                r'VAT\s*(\d+[,.]?\d*)\s*%',
-                r'(\d+[,.]?\d*)\s*%'
-            ],
-            'subtotal': [
-                # Pattern spécifique pour les factures italiennes
-                r'(\d+)%\s+([\d,]+)\s*€\s+([\d,]+)\s*€',
-                # Patterns existants
-                r'Subtotale[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'Subtotal[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'Sous-total[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'Sub-total[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'Net\s*Amount[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'Montant\s*HT[:\s]+[€$]?(\d+[,.]?\d{0,2})',
-                r'(\d+[,.]?\d{2})\s*[€]?\s*(?=.*?(?:TVA|VAT|IVA))'
             ]
-        }# Extraire les données avec les patterns
+        }        # Extraire les données avec les patterns - LOGIQUE CORRIGÉE
         dates_found = []
+        
+        # Pour les patterns ultra-prioritaires (HT, TVA, TAUX TVA), collecter TOUS les matches
+        # et prendre le DERNIER (= totaux finaux, pas lignes produits)
+        ultra_priority_keys = ['subtotal', 'tax_amount', 'tax_rate']
+        ultra_priority_matches = {key: [] for key in ultra_priority_keys}
+        
         for key, pattern_list in patterns.items():
-            for pattern in pattern_list:
+            if key in ultra_priority_keys:
+                # Pour les patterns ultra-prioritaires, collecter TOUS les matches
+                for pattern in pattern_list:
+                    matches = re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE)
+                    for match in matches:
+                        ultra_priority_matches[key].append(match)
+                        if debug_mode:
+                            debug_info.append(f"Pattern ultra-prioritaire {key}: '{pattern}' -> {match.groups()}")
+            else:
+                # Pour les patterns normaux, prendre le PREMIER match comme avant
+                for pattern in pattern_list:
+                    match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                    if match:
+                        # Gérer les patterns avec groupes multiples (dates italiennes)
+                        if key == 'date' and len(match.groups()) > 1:
+                            parsed_date = parse_date_string(match.groups())
+                            if parsed_date:
+                                invoice_data['date_facture'] = parsed_date
+                                dates_found.append(parsed_date)
+                                if debug_mode:
+                                    debug_info.append(f"Date extraite (tuple): {parsed_date}")
+                                break
+                        else:
+                            invoice_data[{
+                                'order_id': 'id_amazon',
+                                'invoice_number': 'facture_amazon',
+                                'date': 'date_facture',
+                                'country': 'pays',
+                                'customer_name': 'nom_contact',
+                                'total_amount': 'total'
+                            }.get(key, key)] = match.group(1).strip()
+                            if debug_mode:
+                                debug_info.append(f"Pattern {key}: '{pattern}' -> {match.group(1)}")
+                            break
+        
+        # Traiter les patterns ultra-prioritaires - PRENDRE LE DERNIER MATCH
+        if debug_mode:
+            debug_info.append("=== TRAITEMENT DES PATTERNS ULTRA-PRIORITAIRES ===")
+        
+        # Traiter HT (subtotal) - DERNIER match
+        if ultra_priority_matches['subtotal']:
+            last_match = ultra_priority_matches['subtotal'][-1]  # DERNIER match
+            if debug_mode:
+                debug_info.append(f"HT: DERNIER match sélectionné parmi {len(ultra_priority_matches['subtotal'])}: {last_match.groups()}")
+            
+            try:
+                pattern_text = last_match.re.pattern
+                if len(last_match.groups()) == 3:
+                    # Formats: "Total 193,32 € 38,66 €" ou "20 % 193,32 € 38,66 €"
+                    if pattern_text.startswith(r'Total\s+'):
+                        # Format "Total 193,32 € 38,66 €" - groupe 1 = HT
+                        clean_value = last_match.groups()[0].replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    else:
+                        # Format "20 % 193,32 € 38,66 €" - groupe 2 = HT
+                        clean_value = last_match.groups()[1].replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    invoice_data['ht'] = float(clean_value)
+                    if debug_mode:
+                        debug_info.append(f"HT extrait (3 groupes): {invoice_data['ht']}")
+                elif len(last_match.groups()) == 2:
+                    # Format spécial TVA 0%: "0% € 93,52 € 0,00" - groupe 1 = HT
+                    clean_value = last_match.groups()[0].replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    invoice_data['ht'] = float(clean_value)
+                    if debug_mode:
+                        debug_info.append(f"HT extrait (2 groupes): {invoice_data['ht']}")
+                else:
+                    # Pattern simple
+                    clean_value = last_match.group(1).replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    invoice_data['ht'] = float(clean_value)
+                    if debug_mode:
+                        debug_info.append(f"HT extrait (simple): {invoice_data['ht']}")
+            except (ValueError, IndexError) as e:
+                if debug_mode:
+                    debug_info.append(f"Erreur extraction HT: {e}")
+        
+        # Traiter TVA (tax_amount) - DERNIER match
+        if ultra_priority_matches['tax_amount']:
+            last_match = ultra_priority_matches['tax_amount'][-1]  # DERNIER match
+            if debug_mode:
+                debug_info.append(f"TVA: DERNIER match sélectionné parmi {len(ultra_priority_matches['tax_amount'])}: {last_match.groups()}")
+            
+            try:
+                pattern_text = last_match.re.pattern
+                if len(last_match.groups()) == 3:
+                    # Formats: "Total 193,32 € 38,66 €" ou "20 % 193,32 € 38,66 €"
+                    if pattern_text.startswith(r'Total\s+'):
+                        # Format "Total 193,32 € 38,66 €" - groupe 2 = TVA
+                        clean_value = last_match.groups()[1].replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    else:
+                        # Format "20 % 193,32 € 38,66 €" - groupe 3 = TVA
+                        clean_value = last_match.groups()[2].replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    invoice_data['tva'] = float(clean_value)
+                    if debug_mode:
+                        debug_info.append(f"TVA extraite (3 groupes): {invoice_data['tva']}")
+                elif len(last_match.groups()) == 2:
+                    # Format spécial TVA 0%: "0% € 93,52 € 0,00" - groupe 2 = TVA
+                    clean_value = last_match.groups()[1].replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    invoice_data['tva'] = float(clean_value)
+                    if debug_mode:
+                        debug_info.append(f"TVA extraite (2 groupes): {invoice_data['tva']}")
+                else:
+                    # Pattern simple
+                    clean_value = last_match.group(1).replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                    invoice_data['tva'] = float(clean_value)
+                    if debug_mode:
+                        debug_info.append(f"TVA extraite (simple): {invoice_data['tva']}")
+            except (ValueError, IndexError) as e:
+                if debug_mode:
+                    debug_info.append(f"Erreur extraction TVA: {e}")
+        
+        # Traiter TAUX TVA (tax_rate) - DERNIER match
+        if ultra_priority_matches['tax_rate']:
+            last_match = ultra_priority_matches['tax_rate'][-1]  # DERNIER match
+            if debug_mode:
+                debug_info.append(f"TAUX: DERNIER match sélectionné parmi {len(ultra_priority_matches['tax_rate'])}: {last_match.groups()}")
+            
+            try:
+                # Prendre le premier groupe (le taux)
+                clean_value = last_match.groups()[0].replace(',', '.').replace(' ', '')
+                rate_float = float(clean_value)
+                invoice_data['taux_tva'] = f"{rate_float:.2f}%"
+                if debug_mode:
+                    debug_info.append(f"Taux TVA extrait: {invoice_data['taux_tva']}")
+            except (ValueError, IndexError) as e:
+                if debug_mode:
+                    debug_info.append(f"Erreur extraction taux TVA: {e}")
+        
+        if debug_mode:
+            debug_info.append("=== FIN TRAITEMENT PATTERNS ULTRA-PRIORITAIRES ===")
+        
+        # Traiter le montant total si pas déjà traité
+        if invoice_data['total'] == 0.0:
+            for pattern in patterns['total_amount']:
                 match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
                 if match:
-                    # Gérer les patterns avec groupes multiples (dates italiennes)
-                    if key == 'date' and len(match.groups()) > 1:
-                        # Pattern avec jour, mois, année séparés
-                        value = match.groups()
+                    try:
+                        clean_value = match.group(1).replace(',', '.').replace(' ', '').replace('\u00a0', '')
+                        invoice_data['total'] = float(clean_value)
                         if debug_mode:
-                            debug_info.append(f"Pattern '{key}' trouvé: {value}")
-                        parsed_date = parse_date_string(value)
-                        if parsed_date:
-                            dates_found.append(parsed_date)
-                            if not invoice_data['date_facture']:  # Prendre la première date trouvée
-                                invoice_data['date_facture'] = parsed_date
-                    else:
-                        # Pattern avec un seul groupe
-                        value = match.group(1).strip()
-                        if debug_mode:
-                            debug_info.append(f"Pattern '{key}' trouvé: {value}")
-                          if key == 'order_id':
-                            invoice_data['id_amazon'] = value
-                        elif key == 'invoice_number':
-                            invoice_data['facture_amazon'] = value
-                        elif key == 'date':
-                            parsed_date = parse_date_string(value)
-                            if parsed_date:
-                                dates_found.append(parsed_date)
-                                if not invoice_data['date_facture']:  # Prendre la première date trouvée
-                                    invoice_data['date_facture'] = parsed_date
-                        elif key == 'country':
-                            # Pour les patterns avec deux groupes (code postal + pays)
-                            if len(match.groups()) == 2:
-                                # Prendre le deuxième groupe (le code pays)
-                                country_code = match.groups()[1].upper()
-                                if debug_mode:
-                                    debug_info.append(f"Pattern country avec 2 groupes: {match.groups()}, code pays: {country_code}")
-                            else:
-                                # Pattern simple
-                                country_code = value.upper()
-                                if debug_mode:
-                                    debug_info.append(f"Pattern country simple: {value}, code pays: {country_code}")
-                            
-                            # Valider que c'est un vrai code pays (2 lettres majuscules)
-                            if len(country_code) == 2 and country_code.isalpha():
-                                # Ne pas écraser si on a déjà un pays valide (premier match gagne)
-                                if not invoice_data['pays']:
-                                    invoice_data['pays'] = country_code
-                                    if debug_mode:
-                                        debug_info.append(f"Code pays défini: {country_code}")
-                                    break  # Sortir de la boucle des patterns une fois qu'on a trouvé
-                        elif key == 'customer_name':
-                            name = re.sub(r'[0-9\n\r]+', ' ', value).strip()
-                            if len(name) > 3:
-                                invoice_data['nom_contact'] = name[:50]
-                        elif key == 'total_amount':
-                            try:
-                                # Remplacer les virgules par des points et nettoyer
-                                clean_value = value.replace(',', '.').replace(' ', '').replace('\u00a0', '')
-                                invoice_data['total'] = float(clean_value)
-                            except ValueError:
-                                pass
-                        elif key == 'tax_amount':
-                            try:
-                                # Pour les patterns avec plusieurs groupes (factures italiennes)
-                                if len(match.groups()) == 3:
-                                    # Pattern: (\d+)%\s+([\d,]+)\s*€\s+([\d,]+)\s*€
-                                    # Groupe 3 = montant TVA
-                                    clean_value = match.groups()[2].replace(',', '.').replace(' ', '').replace('\u00a0', '')
-                                    invoice_data['tva'] = float(clean_value)
-                                else:
-                                    # Pattern simple
-                                    clean_value = value.replace(',', '.').replace(' ', '').replace('\u00a0', '')
-                                    invoice_data['tva'] = float(clean_value)
-                            except ValueError:
-                                pass
-                        elif key == 'tax_rate':
-                            try:
-                                # Pour les patterns avec plusieurs groupes (factures italiennes)
-                                if len(match.groups()) >= 1:
-                                    # Prendre le premier groupe (le taux)
-                                    clean_value = match.groups()[0].replace(',', '.').replace(' ', '')
-                                    rate_float = float(clean_value)
-                                    invoice_data['taux_tva'] = f"{rate_float:.2f}%"
-                                else:
-                                    # Pattern simple
-                                    clean_value = value.replace(',', '.').replace(' ', '')
-                                    rate_float = float(clean_value)
-                                    invoice_data['taux_tva'] = f"{rate_float:.2f}%"
-                            except ValueError:
-                                pass
-                        elif key == 'subtotal':
-                            try:
-                                # Pour les patterns avec plusieurs groupes (factures italiennes)
-                                if len(match.groups()) == 3:
-                                    # Pattern: (\d+)%\s+([\d,]+)\s*€\s+([\d,]+)\s*€
-                                    # Groupe 2 = montant HT
-                                    clean_value = match.groups()[1].replace(',', '.').replace(' ', '').replace('\u00a0', '')
-                                    invoice_data['ht'] = float(clean_value)
-                                else:
-                                    # Pattern simple
-                                    clean_value = value.replace(',', '.').replace(' ', '').replace('\u00a0', '')
-                                    invoice_data['ht'] = float(clean_value)
-                            except ValueError:
-                                pass
+                            debug_info.append(f"Total extrait: {invoice_data['total']}")
+                        break
+                    except (ValueError, IndexError):
+                        continue
         
         # Si aucune date n'a été trouvée avec les patterns spécifiques, essayer d'en extraire une générique
         if not invoice_data['date_facture']:
@@ -582,7 +641,8 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
                             if debug_mode:
                                 debug_info.append(f"Date générique trouvée: {parsed_date}")
                             break
-          # Si aucun pays n'a été trouvé, utiliser fallback simple
+        
+        # Si aucun pays n'a été trouvé, utiliser fallback simple
         if not invoice_data['pays']:
             # Recherche simple des codes pays européens
             country_fallback = re.search(r'\b(IT|FR|DE|ES|MT|NL|BE|AT|PT|CH|UK|GB)\b', text)
@@ -593,17 +653,28 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
         
         if debug_mode and dates_found:
             debug_info.append(f"Toutes les dates trouvées: {dates_found}")
-          # Calculer les valeurs manquantes
-        if invoice_data['total'] > 0 and invoice_data['tva'] > 0 and invoice_data['ht'] == 0:
+        
+        # Calculer les valeurs manquantes - GESTION CORRECTE DU CAS TVA 0%
+        if invoice_data['total'] > 0 and invoice_data['tva'] >= 0 and invoice_data['ht'] == 0:
+            # Si on a Total et TVA (même 0), calculer HT
             invoice_data['ht'] = invoice_data['total'] - invoice_data['tva']
-        elif invoice_data['total'] == 0 and invoice_data['ht'] > 0 and invoice_data['tva'] > 0:
+        elif invoice_data['total'] == 0 and invoice_data['ht'] > 0 and invoice_data['tva'] >= 0:
+            # Si on a HT et TVA (même 0), calculer Total
             invoice_data['total'] = invoice_data['ht'] + invoice_data['tva']
         
-        # Si on n'a pas de taux de TVA mais qu'on a HT et TVA, le calculer
-        # Sinon, utiliser le taux détecté directement
-        if not invoice_data['taux_tva'] and invoice_data['ht'] > 0 and invoice_data['tva'] > 0:
-            taux = (invoice_data['tva'] / invoice_data['ht']) * 100
-            invoice_data['taux_tva'] = f"{taux:.2f}%"
+        # Gestion du taux de TVA - ACCEPTER 0% comme valide
+        if not invoice_data['taux_tva']:
+            if invoice_data['ht'] > 0 and invoice_data['tva'] >= 0:
+                # Calculer le taux même si TVA = 0
+                if invoice_data['tva'] == 0:
+                    invoice_data['taux_tva'] = "0.00%"
+                    if debug_mode:
+                        debug_info.append("Taux TVA calculé: 0.00% (TVA à zéro)")
+                else:
+                    taux = (invoice_data['tva'] / invoice_data['ht']) * 100
+                    invoice_data['taux_tva'] = f"{taux:.2f}%"
+                    if debug_mode:
+                        debug_info.append(f"Taux TVA calculé: {invoice_data['taux_tva']}")
         
         # Vérifier si on a les données minimales
         has_minimum_data = (
@@ -613,7 +684,7 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename=''):
         )
         
         if debug_mode:
-            debug_info.append(f"Données extraites: {invoice_data}")
+            debug_info.append(f"Données extraites finales: {invoice_data}")
             debug_info.append(f"Données minimales présentes: {has_minimum_data}")
         
         if has_minimum_data:
@@ -673,8 +744,7 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
                 else:
                     logger.warning("Le fichier Excel existant n'a pas la structure attendue")
             except Exception as e:
-                logger.error(f"Erreur lors du chargement du fichier existant: {str(e)}")        
-        # Ajouter les nouvelles données de factures (sans numéro)
+                logger.error(f"Erreur lors du chargement du fichier existant: {str(e)}")          # Ajouter les nouvelles données de factures (sans numéro)
         for invoice in invoices_data:
             rows_data.append({
                 'id_amazon': invoice.get('id_amazon', ''),
@@ -688,12 +758,31 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
                 'total': invoice.get('total', 0.0)
             })
         
+        # TRI PAR DATE CROISSANTE
+        def parse_date_for_sorting(date_str):
+            """Parse une date DD/MM/YYYY pour le tri"""
+            if not date_str or date_str == '':
+                return datetime.min  # Les dates vides en premier
+            try:
+                # Format attendu: DD/MM/YYYY
+                return datetime.strptime(str(date_str), '%d/%m/%Y')
+            except ValueError:
+                try:
+                    # Essayer d'autres formats au cas où
+                    return datetime.strptime(str(date_str), '%Y-%m-%d')
+                except ValueError:
+                    return datetime.min  # Si parsing échoue, mettre en premier
+        
+        # Trier les données par date croissante
+        rows_data.sort(key=lambda x: parse_date_for_sorting(x['date_facture']))
+        logger.info(f"Données triées par date croissante: {len(rows_data)} factures")
+        
         # Calculer les totaux
         total_ht = sum([row['ht'] for row in rows_data])
         total_tva = sum([row['tva'] for row in rows_data])
         total_ttc = sum([row['total'] for row in rows_data])
         
-        logger.info(f"Totaux calculés - HT: {total_ht:.2f}, TVA: {total_tva:.2f}, TTC: {total_ttc:.2f}")        # Créer le DataFrame avec la structure attendue (sans colonne N°)
+        logger.info(f"Totaux calculés - HT: {total_ht:.2f}, TVA: {total_tva:.2f}, TTC: {total_ttc:.2f}")# Créer le DataFrame avec la structure attendue (sans colonne N°)
         df_data = []
         
         # Première ligne avec les totaux (exactement comme dans votre exemple CSV)

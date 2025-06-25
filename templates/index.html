@@ -763,17 +763,19 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Fichier Excel existant (conditionnel) -->
+                        </div>                        <!-- Fichier Excel existant (conditionnel) -->
                         <div class="form-section" id="pdfOldFileSection" style="display: none;">
                             <h3>📊 Tableau existant à compléter</h3>
-                            <div class="file-card">
+                            <div class="file-card drag-drop-zone" 
+                                 ondrop="handleExcelDrop(event)" 
+                                 ondragover="allowDrop(event)" 
+                                 ondragenter="handleDragEnter(event)" 
+                                 ondragleave="handleDragLeave(event)">
                                 <div class="file-icon">📊</div>
                                 <div class="file-content">
-                                    <h4>Fichier Excel existant</h4>
-                                    <p>Sélectionnez le fichier Excel existant auquel ajouter les nouvelles factures</p>
-                                    <input type="file" id="pdf_old_file" name="pdf_old_file" accept=".xlsx,.xls">
+                                    <h4>Glissez-déposez votre fichier Excel ici</h4>
+                                    <p>Ou cliquez pour sélectionner le fichier Excel existant auquel ajouter les nouvelles factures</p>
+                                    <input type="file" id="pdf_old_file" name="pdf_old_file" accept=".xlsx,.xls" style="display: none;">
                                     <div class="file-status" id="pdf-old-status">
                                         <span class="status-text">Aucun fichier sélectionné</span>
                                     </div>
@@ -784,10 +786,11 @@
                         <div class="submit-section">
                             <div class="progress-bar">
                                 <div class="progress-fill" id="pdfProgressFill"></div>
-                            </div>
-                            <div class="progress-details" id="pdfProgressDetails" style="display: none;">
+                            </div>                            <div class="progress-details" id="pdfProgressDetails" style="display: none;">
                                 <div class="progress-text" id="pdfCurrentFile">Préparation...</div>
-                                <div class="progress-stats" id="pdfProgressStats">0 / 0 fichiers traités</div>                            </div>
+                                <div class="progress-stats" id="pdfProgressStats">0 / 0 fichiers traités</div>
+                            </div>
+                            <div class="progress-text" id="pdfProgressText" style="display: none; text-align: center; margin-top: 10px; font-size: 14px;">Prêt à générer le tableau</div>
                             <button type="submit" id="pdfSubmitBtn" class="submit-btn">
                                 <span id="pdfSubmitBtnText">📊 Générer le tableau</span>
                             </button>
@@ -844,28 +847,40 @@
         <!-- Fin des onglets -->
     </div>
 
-    <script>
-        // Fonction pour gérer les onglets
+    <script>        // Fonction pour gérer les onglets
         function switchTab(tabName) {
+            console.log('switchTab appelée avec:', tabName);
+            
             // Cacher tous les contenus d'onglets
             const tabContents = document.querySelectorAll('.tab-content');
+            console.log('Onglets trouvés:', tabContents.length);
             tabContents.forEach(content => {
                 content.classList.remove('active');
             });
             
             // Désactiver tous les boutons d'onglets
             const tabButtons = document.querySelectorAll('.tab-button');
+            console.log('Boutons trouvés:', tabButtons.length);
             tabButtons.forEach(button => {
                 button.classList.remove('active');
             });
             
             // Activer l'onglet sélectionné
-            document.getElementById(tabName).classList.add('active');
+            const targetElement = document.getElementById(tabName);
+            console.log('Élément cible:', targetElement);
+            if (targetElement) {
+                targetElement.classList.add('active');
+                console.log('Onglet activé:', tabName);
+            } else {
+                console.error('Élément non trouvé:', tabName);
+            }
             
             // Activer le bouton correspondant
             const activeButton = document.querySelector(`[onclick="switchTab('${tabName}')"]`);
+            console.log('Bouton correspondant:', activeButton);
             if (activeButton) {
                 activeButton.classList.add('active');
+                console.log('Bouton activé');
             }
         }
 
@@ -1355,19 +1370,23 @@
                     const pdfProgressDetails = document.getElementById('pdfProgressDetails');
                     const pdfCurrentFile = document.getElementById('pdfCurrentFile');
                     const pdfProgressStats = document.getElementById('pdfProgressStats');
-                    
-                    if (pdfProgressDetails) {
+                      if (pdfProgressDetails) {
                         pdfProgressDetails.style.display = 'block';
                         pdfCurrentFile.textContent = 'Préparation du traitement...';
                         pdfProgressStats.textContent = `0 / ${fileCount} fichiers traités`;
                     }
                     
+                    // Afficher l'élément de progression textuel
+                    if (pdfProgressText) {
+                        pdfProgressText.style.display = 'block';
+                        pdfProgressText.textContent = 'Début du traitement...';
+                    }
+                    
                     let progress = 0;
-                    const progressInterval = setInterval(() => {
-                        progress += Math.random() * 3; // Plus lent pour gros lots
+                    const progressInterval = setInterval(() => {                        progress += Math.random() * 3; // Plus lent pour gros lots
                         if (progress > 85) progress = 85; // Ne pas aller au bout avant la vraie fin
-                        pdfProgressFill.style.width = progress + '%';
-                        pdfProgressText.textContent = `Traitement en cours... ${Math.round(progress)}%`;
+                        if (pdfProgressFill) pdfProgressFill.style.width = progress + '%';
+                        if (pdfProgressText) pdfProgressText.textContent = `Traitement en cours... ${Math.round(progress)}%`;
                     }, 800);
                     
                     // Envoi de la requête vers la route batch
@@ -1396,28 +1415,28 @@
                                 pdfCurrentFile.textContent = `Résultats: ${stats.total_invoices_in_excel} factures dans le fichier Excel`;
                                 pdfProgressStats.textContent = `${stats.processed_successfully} / ${stats.total_files} fichiers traités`;
                             }
-                            
-                            // Afficher les erreurs s'il y en a
+                              // Afficher les erreurs s'il y en a
                             if (data.processing_errors && data.processing_errors.length > 0) {
                                 const errorList = data.processing_errors.slice(0, 5).join(', ');
                                 console.warn('Erreurs de traitement:', data.processing_errors);
-                                pdfProgressText.innerHTML += `<br><small style="color: #ffc107;">⚠️ ${data.processing_errors.length} erreur(s): ${errorList}${data.processing_errors.length > 5 ? '...' : ''}</small>`;
+                                if (pdfProgressText) {
+                                    pdfProgressText.innerHTML += `<br><small style="color: #ffc107;">⚠️ ${data.processing_errors.length} erreur(s): ${errorList}${data.processing_errors.length > 5 ? '...' : ''}</small>`;
+                                }
                             }
                             
                             // Téléchargement automatique
                             setTimeout(() => {
                                 const downloadLink = document.createElement('a');
                                 downloadLink.href = data.download_url;
-                                downloadLink.download = data.filename;
-                                downloadLink.click();
+                                downloadLink.download = data.filename;                                downloadLink.click();
                                   // Reset du formulaire après 3 secondes
                                 setTimeout(() => {
                                     pdfForm.reset();
                                     pdfSubmitBtn.disabled = false;
                                     pdfSubmitBtnText.textContent = '📊 Générer le tableau';
                                     pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                                    pdfProgressFill.style.width = '0%';
-                                    pdfProgressText.textContent = 'Prêt à générer le tableau';
+                                    if (pdfProgressFill) pdfProgressFill.style.width = '0%';
+                                    if (pdfProgressText) pdfProgressText.textContent = 'Prêt à générer le tableau';
                                     if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
                                     
                                     // Reset des status de fichier
@@ -1435,7 +1454,8 @@
                                         pdfOldStatus.style.color = '#666';
                                     }
                                 }, 3000);
-                            }, 1500);                        } else {
+                            }, 1500);
+                        } else {
                             if (pdfProgressText) {
                                 pdfProgressText.innerHTML = `❌ Erreur: ${data.error}`;
                             }
@@ -1456,14 +1476,15 @@
                                 const errorSummary = data.processing_errors.slice(0, 3).join('; ');
                                 if (pdfProgressText) {
                                     pdfProgressText.innerHTML += `<br><small>${errorSummary}</small>`;
-                                }
-                            }
-                              // Reset après 8 secondes
+                                }                            }
+                            
+                            // Reset après 8 secondes
                             setTimeout(() => {
                                 pdfSubmitBtn.disabled = false;
                                 pdfSubmitBtnText.textContent = '📊 Générer le tableau';
-                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';                                pdfProgressFill.style.width = '0%';
-                                pdfProgressText.textContent = 'Prêt à générer le tableau';
+                                pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                                if (pdfProgressFill) pdfProgressFill.style.width = '0%';
+                                if (pdfProgressText) pdfProgressText.textContent = 'Prêt à générer le tableau';
                                 if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
                             }, 8000);
                         }
@@ -1482,7 +1503,9 @@
                         if (pdfProgressDetails && pdfCurrentFile && pdfProgressStats) {
                             pdfCurrentFile.textContent = 'Erreur de connexion';
                             pdfProgressStats.textContent = 'Connexion interrompue';
-                        }                        // Reset après 5 secondes
+                        }
+                        
+                        // Reset après 5 secondes
                         setTimeout(() => {
                             if (pdfSubmitBtn) {
                                 pdfSubmitBtn.disabled = false;
@@ -1499,30 +1522,36 @@
                             }
                             if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
                         }, 5000);
-                    })
-                    .catch(error => {
-                        clearInterval(progressInterval);
-                        console.error('Erreur:', error);
-                        if (pdfProgressText) {
-                            pdfProgressText.innerHTML = '❌ Erreur de connexion';
-                        }
-                        if (pdfSubmitBtnText) {
-                            pdfSubmitBtnText.textContent = '❌ Erreur';
-                        }
-                        
-                        // Reset après 5 secondes
-                        setTimeout(() => {
-                            pdfSubmitBtn.disabled = false;
-                            pdfSubmitBtnText.textContent = '📊 Générer le tableau';
-                            pdfSubmitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                            pdfProgressFill.style.width = '0%';
-                            pdfProgressText.textContent = 'Prêt à générer le tableau';
-                            if (pdfProgressDetails) pdfProgressDetails.style.display = 'none';
-                        }, 5000);
                     });
                 });
             }
         });
+
+        // =====================================================================
+        // FONCTIONS GLOBALES POUR LE DRAG & DROP
+        // =====================================================================
+        
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+        
+        function handleDragEnter(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const dropZone = event.target.closest('.drag-drop-zone');
+            if (dropZone) {
+                dropZone.classList.add('drag-over');
+            }
+        }
+        
+        function handleDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const dropZone = event.target.closest('.drag-drop-zone');
+            if (dropZone && !dropZone.contains(event.relatedTarget)) {
+                dropZone.classList.remove('drag-over');
+            }
+        }
 
         // =====================================================================
         // GESTION DU MODE DEBUG
@@ -1705,36 +1734,47 @@
             
             debugContent.innerHTML = html;
             debugResults.style.display = 'block';
-        }
-
-        // Fonctions pour le mode debug
-        function handleDebugDrop(event) {
+        }        // =====================================================================
+        // GESTION DU DRAG & DROP POUR FICHIER EXCEL EXISTANT
+        // =====================================================================
+        
+        function handleExcelDrop(event) {
             event.preventDefault();
             event.stopPropagation();
             
+            const dropZone = event.target.closest('.drag-drop-zone');
+            dropZone.classList.remove('drag-over');
+            
             const files = event.dataTransfer.files;
-            const debugFileInput = document.getElementById('debug_pdf_files');
-            if (debugFileInput) {
-                debugFileInput.files = files;
-                updateDebugFileStatus(files);
-            }
-            
-            // Retirer l'effet visuel de drag
-            event.target.classList.remove('dragover');
-        }
-
-        function updateDebugFileStatus(files) {
-            const debugStatus = document.getElementById('debug-pdf-status');
-            if (!debugStatus) return;
-            
             if (files.length > 0) {
-                const fileNames = Array.from(files).slice(0, 5).map(f => f.name).join(', ');
-                const limitText = files.length > 5 ? ` (limité à 5 fichiers)` : '';
-                debugStatus.innerHTML = `<span class="status-text">${files.length} fichier(s) sélectionné(s)${limitText}</span>`;
-                debugStatus.style.color = '#28a745';
+                const file = files[0];
+                // Vérifier que c'est un fichier Excel
+                if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+                    const excelInput = document.getElementById('pdf_old_file');
+                    if (excelInput) {
+                        // Créer un nouveau FileList avec le fichier dropé
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        excelInput.files = dataTransfer.files;
+                        
+                        updateExcelFileStatus(file);
+                    }
+                } else {
+                    alert('⚠️ Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
+                }
+            }
+        }
+        
+        function updateExcelFileStatus(file) {
+            const statusElement = document.getElementById('pdf-old-status');
+            const statusText = statusElement.querySelector('.status-text');
+            
+            if (file) {
+                statusText.innerHTML = `✅ Fichier sélectionné:<br><strong>${file.name}</strong>`;
+                statusElement.style.color = '#28a745';
             } else {
-                debugStatus.innerHTML = '<span class="status-text">Aucun fichier sélectionné</span>';
-                debugStatus.style.color = '#666';
+                statusText.textContent = 'Aucun fichier sélectionné';
+                statusElement.style.color = '#6c757d';
             }
         }
 
@@ -1789,8 +1829,7 @@
                             debugSubmitBtn.textContent = '🔍 Analyser les PDF';
                         }
                     });
-                });
-            }
+                });            }
             
             // Gestionnaire pour le clic sur la zone de drop debug
             const debugDropZone = document.querySelector('#debug-mode .drag-drop-zone');
@@ -1801,6 +1840,28 @@
                 
                 debugFileInput.addEventListener('change', function() {
                     updateDebugFileStatus(this.files);
+                });
+            }
+            
+            // =====================================================================
+            // GESTION DU FICHIER EXCEL EXISTANT (DRAG & DROP)
+            // =====================================================================
+            
+            // Gestionnaire pour le clic sur la zone de drop Excel
+            const excelDropZone = document.querySelector('#pdfOldFileSection .drag-drop-zone');
+            const excelFileInput = document.getElementById('pdf_old_file');
+            
+            if (excelDropZone && excelFileInput) {
+                excelDropZone.addEventListener('click', function() {
+                    excelFileInput.click();
+                });
+                
+                excelFileInput.addEventListener('change', function() {
+                    if (this.files && this.files.length > 0) {
+                        updateExcelFileStatus(this.files[0]);
+                    } else {
+                        updateExcelFileStatus(null);
+                    }
                 });
             }
         });
