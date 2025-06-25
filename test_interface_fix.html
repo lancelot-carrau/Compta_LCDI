@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Interface Fix</title>
+    <script>
+        function testElementCheck() {
+            console.log("Test de vérification d'éléments DOM");
+            
+            // Test de l'ancienne méthode (sans vérification)
+            const element1 = document.getElementById('nonExistentElement');
+            console.log("element1:", element1);
+            
+            try {
+                // Ceci devrait causer une erreur
+                element1.innerHTML = "Test";
+            } catch (e) {
+                console.error("Erreur sans vérification:", e.message);
+            }
+            
+            // Test de la nouvelle méthode (avec vérification)
+            const element2 = document.getElementById('nonExistentElement');
+            if (element2) {
+                element2.innerHTML = "Test";
+            } else {
+                console.log("Élément non trouvé - pas d'erreur grâce à la vérification");
+            }
+            
+            // Test avec un élément existant
+            const existingElement = document.getElementById('testDiv');
+            if (existingElement) {
+                existingElement.innerHTML = "✅ Test réussi avec vérification";
+            }
+        }
+        
+        window.onload = testElementCheck;
+    </script>
+</head>
+<body>
+    <h1>Test de la correction de l'interface</h1>
+    <div id="testDiv">Test en cours...</div>
+    <p>Vérifiez la console pour voir les résultats du test.</p>
+</body>
+</html>

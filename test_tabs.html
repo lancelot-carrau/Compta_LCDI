@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test des Onglets</title>
+    <style>
+        .tab-button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background: #007bff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test des Onglets</h1>
+    
+    <div class="tabs-nav">
+        <button type="button" class="tab-button active" onclick="switchTab('tab1')">
+            Onglet 1
+        </button>
+        <button type="button" class="tab-button" onclick="switchTab('tab2')">
+            Onglet 2
+        </button>
+        <button type="button" class="tab-button" onclick="switchTab('tab3')">
+            Onglet 3
+        </button>
+    </div>
+
+    <div id="tab1" class="tab-content active">
+        <h2>Contenu de l'onglet 1</h2>
+        <p>Ceci est le premier onglet.</p>
+    </div>
+
+    <div id="tab2" class="tab-content">
+        <h2>Contenu de l'onglet 2</h2>
+        <p>Ceci est le deuxième onglet.</p>
+    </div>
+
+    <div id="tab3" class="tab-content">
+        <h2>Contenu de l'onglet 3</h2>
+        <p>Ceci est le troisième onglet.</p>
+    </div>
+
+    <script>
+        function switchTab(tabName) {
+            console.log('switchTab appelée avec:', tabName);
+            
+            // Cacher tous les contenus d'onglets
+            const tabContents = document.querySelectorAll('.tab-content');
+            console.log('Onglets trouvés:', tabContents.length);
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Désactiver tous les boutons d'onglets
+            const tabButtons = document.querySelectorAll('.tab-button');
+            console.log('Boutons trouvés:', tabButtons.length);
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Activer l'onglet sélectionné
+            const targetTab = document.getElementById(tabName);
+            console.log('Onglet cible:', targetTab);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+            
+            // Activer le bouton correspondant
+            const activeButton = document.querySelector(`[onclick="switchTab('${tabName}')"]`);
+            console.log('Bouton actif:', activeButton);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+        }
+        
+        // Test au chargement
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page chargée, test de switchTab...');
+            // Test avec un délai
+            setTimeout(() => {
+                console.log('Test switchTab après 1 seconde');
+                switchTab('tab2');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
