@@ -209,6 +209,20 @@ def parse_date_string(date_str):
             'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
         }
         
+        # Dictionnaire de conversion des mois espagnols
+        spanish_months = {
+            'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+            'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+            'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+        }
+        
+        # Dictionnaire de conversion des mois néerlandais
+        dutch_months = {
+            'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+            'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+            'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+        }
+        
         # Dictionnaire des mois allemands
         german_months = {
             'januar': '01', 'februar': '02', 'märz': '03', 'april': '04',
@@ -231,6 +245,8 @@ def parse_date_string(date_str):
             # Chercher le mois dans les dictionnaires
             month_num = (italian_months.get(month_text) or 
                         french_months.get(month_text) or 
+                        spanish_months.get(month_text) or 
+                        dutch_months.get(month_text) or 
                         german_months.get(month_text) or 
                         english_months.get(month_text))
             if month_num:
@@ -239,7 +255,7 @@ def parse_date_string(date_str):
         date_input = str(date_str).strip()
         
         # Traitement des dates avec mois en texte (format "DD mois YYYY")
-        text_date_pattern = r'(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})'
+        text_date_pattern = r'(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})'
         
         match = re.search(text_date_pattern, date_input, re.IGNORECASE)
         if match:
@@ -249,6 +265,8 @@ def parse_date_string(date_str):
             # Chercher le mois dans tous les dictionnaires
             month_num = (italian_months.get(month_text) or 
                         french_months.get(month_text) or 
+                        spanish_months.get(month_text) or 
+                        dutch_months.get(month_text) or 
                         german_months.get(month_text) or 
                         english_months.get(month_text))
             if month_num:
@@ -314,17 +332,23 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
         if pdf_path and pdf_path.lower().endswith('.pdf'):
             try:
                 import pdfplumber
+                if debug_mode:
+                    logger.info(f"   [SPATIAL] Démarrage analyse spatiale pour: {pdf_path}")
                 spatial_result = _extract_with_spatial_analysis(pdf_path, debug_mode)
+                if debug_mode:
+                    logger.info(f"   [SPATIAL] Résultat: {spatial_result}")
                 if spatial_result:
                     # Fusionner UNIQUEMENT les montants issus de l'analyse spatiale
                     for key, value in spatial_result.items():
-                        if value and key in ['ht', 'tva', 'total', 'taux_tva']:  # Restriction aux montants
+                        if value is not None and key in ['ht', 'tva', 'total', 'taux_tva']:  # Restriction aux montants
                             invoice_data[key] = value
                             if debug_mode:
                                 logger.info(f"   [SPATIAL] {key}: {value}")
             except Exception as e:
                 if debug_mode:
                     logger.warning(f"   Analyse spatiale échouée: {e}")
+                    import traceback
+                    logger.warning(f"   Traceback: {traceback.format_exc()}")
         
         # === PATTERNS REGEX POUR CHAMPS NON-MONTANTS ===
         regex_patterns = {
@@ -355,55 +379,88 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                 # Dates avec mots-clés italiens
                 r'Data della fattura[:\s]*(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})',
                 r'(?:Data|del)[:\s]*(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})',
+                # Dates avec mots-clés espagnols
+                r'Fecha de la factura[:\s]*(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})',
+                r'Fecha de la nota de crédito[:\s]*(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})',
+                r'(?:Fecha|del)[:\s]*(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})',
+                # Dates avec mots-clés néerlandais
+                r'Factuurdatum[:\s]*(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\s+(\d{4})',
+                r'(?:Datum|van)[:\s]*(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\s+(\d{4})',
                 # Dates avec mois en anglais
                 r'Invoice date[:\s]*(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})',
                 # Patterns plus flexibles avec mois texte (multilangue)
                 r'(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})',
                 r'(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+(\d{4})',
+                r'(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})',
+                r'(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\s+(\d{4})',
                 r'(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})',
                 # Formats numériques avec contexte
-                r'(?:Date|Data|Invoice date)[:\s]*(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{4})',
+                r'(?:Date|Data|Fecha|Factuurdatum|Invoice date)[:\s]*(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{4})',
                 # Format numérique sans contexte (en dernier)
                 r'(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{4})'
             ],
             'pays': [
                 # Patterns qui capturent le CODE PAYS (2 lettres), pas le code postal
+                r'\d{4,5}[A-Z]{2}\s+(NL)\b',  # Code postal néerlandais suivi du code pays
                 r'\d{5}\s+(FR|IT|MT|DE|ES)\b',  # Code postal suivi du code pays
-                r'\b(FR|IT|MT|DE|ES)\s+\d{5}\b',  # Code pays suivi du code postal
-                r'\b(FR|IT|MT|DE|ES)\b(?!\d)',  # Code pays seul (pas suivi de chiffres)
+                r'\b(FR|IT|MT|DE|ES|NL|BE)\s+\d{4,5}\b',  # Code pays suivi du code postal
+                r'\b(FR|IT|MT|DE|ES|NL|BE)\b(?!\d)',  # Code pays seul (pas suivi de chiffres)
                 # Patterns avec noms de pays complets
                 r'\d{5}\s+(?:France|FRANCE)\s*.*?\b(FR)\b',
                 r'\d{5}\s+(?:Italia|ITALIA|Italy)\s*.*?\b(IT)\b',
                 r'\d{5}\s+(?:Malta|MALTA)\s*.*?\b(MT)\b',
                 r'\d{5}\s+(?:Deutschland|DEUTSCHLAND|Germany)\s*.*?\b(DE)\b',
                 r'\d{5}\s+(?:España|ESPAÑA|Spain)\s*.*?\b(ES)\b',
+                r'\d{4}[A-Z]{2}\s+(?:Nederland|NEDERLAND|Netherlands)\s*.*?\b(NL)\b',
+                r'\d{4}\s+(?:België|BELGIË|Belgium|Belgique)\s*.*?\b(BE)\b',
                 # Fallback : recherche directe du code pays
                 r'(?:France|FRANCE).*?(FR)',
                 r'(?:Italia|ITALIA|Italy).*?(IT)',
                 r'(?:Malta|MALTA).*?(MT)',
                 r'(?:Deutschland|DEUTSCHLAND|Germany).*?(DE)',
-                r'(?:España|ESPAÑA|Spain).*?(ES)'
+                r'(?:España|ESPAÑA|Spain).*?(ES)',
+                r'(?:Nederland|NEDERLAND|Netherlands).*?(NL)',
+                r'(?:België|BELGIË|Belgium|Belgique).*?(BE)'
             ],
             'nom_contact': [
-                # PRIORITÉ 1: Noms en majuscules (vrais clients) - après "Total" ou "€"
-                r'(?:Total[^€]*€|€)\s*([A-Z]+\s+[A-Z]+(?:\s+[A-Z]+)?)\s*(?=\n|$)',
-                r'Totale fattura[^€]*€\s*([A-Z]+\s+[A-Z]+(?:\s+[A-Z]+)?)\s*(?=\n|$)',
-                r'Total à payer[^€]*€\s*([A-Z]+\s+[A-Z]+(?:\s+[A-Z]+)?)\s*(?=\n|$)',
+                # PRIORITÉ 0: Nouveaux patterns pour noms collés aux montants (PRIORITÉ ABSOLUE)
+                r'Total\s+(?:pendiente|à payer|te betalen|da pagare)\s+[€-]?[\d,\.]+\s*€?\s*([A-Z][A-Za-z\s]+?)(?=\s*\n|\s*$)',
+                r'Total\s+(?:pendiente|à payer|te betalen|da pagare)\s+[\d,\.]+\s*€([A-Z][A-Z\s]+?)(?=\s*\n|\s*$)',
+                r'(?:Total|Totale)\s+(?:pendiente|à payer|te betalen|da pagare)\s+[\d,\.]+[\s\xa0]*€[\s\xa0]*([A-Z][A-Z\s]+?)(?=\s*\n|\s*$)',
                 
-                # PRIORITÉ 2: Noms avant adresse (ligne suivante = adresse)
-                r'([A-Z]+\s+[A-Z]+(?:\s+[A-Z]+)?)\s*\n\s*(?:VIA|RUE|STREET|STRADA)',
+                # PRIORITÉ 1: Noms directement après numéro de facture (patterns spécifiques par langue)
+                r'Número de la factura [A-Z0-9]+\s*\n\s*([A-Z][A-Za-z\s]+)(?=\s*\n|\s*$)',  # Espagnol
+                r'Factuurnummer [A-Z0-9]+\s*\n\s*([A-Z][A-Za-z\s]+)(?=\s*\n|\s*$)',  # Néerlandais
+                r'Numero della fattura [A-Z0-9]+\s*\n\s*([A-Z][A-Za-z\s]+)(?=\s*\n|\s*$)',  # Italien
+                r'Numéro de la facture [A-Z0-9]+\s*\n\s*([A-Z][A-Za-z\s]+)(?=\s*\n|\s*$)',  # Français
+                r'Numéro de l\'avoir [A-Z0-9]+\s*\n\s*([A-Z][A-Za-z\s]+)(?=\s*\n|\s*$)',  # Français avoir
                 
-                # PRIORITÉ 3: Adresse de facturation (minuscules après mots-clés)
-                r'Indirizzo di fatturazione\s*\n\s*([a-z]+\s+[a-z]+(?:\s+[a-z]+)?)',
-                r'Billing address\s*\n\s*([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
-                r'Adresse de facturation\s*\n\s*([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+                # PRIORITÉ 2: Noms en majuscules dans le texte (comme "DAVE")
+                r'Btw-nummer [A-Z0-9]+\s*\n\s*([A-Z][A-Z\s]*[A-Z])\s*\n\s*Factuurdatum',  # Néerlandais
+                r'IVA [A-Z0-9]+\s*\n\s*([A-Z][A-Z\s]*[A-Z])\s*\n\s*Fecha',  # Espagnol
+                r'([A-Z]{3,}(?:\s+[A-Z]{3,})*)\s*\n\s*Número de la nota de crédito',  # Espagnol note de crédit
+                r'([A-Z]{3,}(?:\s+[A-Z]{3,})*)\s*\n\s*Numéro de l\'avoir',  # Français avoir
                 
-                # PRIORITÉ 4: Patterns classiques mais ÉVITER Amazon Locker
+                # PRIORITÉ 3: Noms dans les sections d'adresse (après mots-clés, avant adresse)
+                r'Adresse de facturation\s*\n\s*([A-Z][A-Za-z\s]+)\s*\n\s*[0-9]',  # Français
+                r'Dirección de facturación\s*\n\s*([A-Z][A-Za-z\s]+)\s*\n\s*[A-Z]',  # Espagnol
+                r'Factuuradres\s*\n\s*([A-Z][A-Za-z\s]+)\s*\n\s*[A-Z]',  # Néerlandais
+                r'Indirizzo di fatturazione\s*\n\s*([A-Z][A-Za-z\s]+)\s*\n\s*[A-Z]',  # Italien
+                
+                # PRIORITÉ 4: Noms en majuscules avant l'adresse de facturation (format direct)
+                r'([A-Z]+\s+[A-Z]+(?:\s+[A-Z]+)?)\s*\n\s*(?:VIA|RUE|STREET|STRADA|CALLE|PASEO)',
+                
+                # PRIORITÉ 6: Patterns classiques améliorés (éviter Amazon Locker)
                 r'Commandé par[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
                 r'Ordinato da[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
                 r'Ordered by[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
                 
-                # PRIORITÉ 5: Patterns de livraison mais ÉVITER Amazon Locker
+                # PRIORITÉ 7: Noms en minuscules spécifiques (cas particuliers comme "xiaolai jin")
+                r'Dirección de envío\s*\n\s*([a-z][a-z\s]+)\s*\n',  # Espagnol
+                r'Bezorgadres\s*\n\s*([A-Z][a-z]+(?:\s+[A-Z]?[a-z]+)*)\s*\n',  # Néerlandais
+                r'Adresse de livraison\s*\n\s*([A-Z][a-z]+(?:\s+[a-z]+)*)\s*\n',  # Français
+                
+                # PRIORITÉ 8: Patterns de livraison (éviter Amazon Locker)
                 r'Livré à[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
                 r'Consegnato a[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
                 r'Ship to[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})'
@@ -423,7 +480,7 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                             month_text = match.group(2).lower()
                             year = match.group(3)
                             
-                            # Mapping des mois (français, italien, anglais)
+                            # Mapping des mois (français, italien, anglais, espagnol, néerlandais)
                             month_map = {
                                 # Italien
                                 'gennaio': '01', 'febbraio': '02', 'marzo': '03', 'aprile': '04',
@@ -436,7 +493,15 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                                 # Anglais
                                 'january': '01', 'february': '02', 'march': '03', 'april': '04',
                                 'may': '05', 'june': '06', 'july': '07', 'august': '08',
-                                'september': '09', 'october': '10', 'november': '11', 'december': '12'
+                                'september': '09', 'october': '10', 'november': '11', 'december': '12',
+                                # Espagnol
+                                'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+                                'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+                                'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12',
+                                # Néerlandais
+                                'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+                                'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+                                'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
                             }
                             
                             if month_text in month_map:
@@ -549,32 +614,43 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                         if not table:
                             continue
                         
-                        # Analyse du tableau de TVA (format: ['', '20 %', '191,38 €', '38,28 €'])
+                        # Analyse du tableau de TVA (formats variés)
                         for row in table:
-                            if len(row) >= 4 and any('€' in str(cell) for cell in row):
+                            if len(row) >= 3 and any('€' in str(cell) for cell in row):
                                 # Recherche d'une ligne avec pourcentage et montants
                                 percent_cell = None
                                 ht_cell = None
                                 tva_cell = None
                                 
-                                for cell in row:
-                                    cell_str = str(cell).strip()
-                                    if '%' in cell_str:
-                                        try:
-                                            percent_cell = float(cell_str.replace('%', '').replace(',', '.').strip())
-                                        except:
-                                            pass
-                                    elif '€' in cell_str:
-                                        try:
-                                            amount = float(cell_str.replace('€', '').replace(',', '.').strip())
-                                            if ht_cell is None:
-                                                ht_cell = amount
-                                            elif tva_cell is None:
-                                                tva_cell = amount
-                                        except:
-                                            pass
+                                # Pattern spécial pour ['', '0%', '€ 93,52', '€ 0,00'] (TVA à 0%)
+                                if len(row) == 4 and '%' in str(row[1]) and '€' in str(row[2]) and '€' in str(row[3]):
+                                    try:
+                                        percent_cell = float(str(row[1]).replace('%', '').replace(',', '.').strip())
+                                        ht_cell = float(str(row[2]).replace('€', '').replace(',', '.').strip())
+                                        tva_cell = float(str(row[3]).replace('€', '').replace(',', '.').strip())
+                                    except:
+                                        pass
                                 
-                                # Accepter si on a le pourcentage ET au moins le HT (TVA peut être 0)
+                                # Pattern classique pour ['', '20 %', '191,38 €', '38,28 €']
+                                if percent_cell is None:
+                                    for cell in row:
+                                        cell_str = str(cell).strip()
+                                        if '%' in cell_str:
+                                            try:
+                                                percent_cell = float(cell_str.replace('%', '').replace(',', '.').strip())
+                                            except:
+                                                pass
+                                        elif '€' in cell_str:
+                                            try:
+                                                amount = float(cell_str.replace('€', '').replace(',', '.').strip())
+                                                if ht_cell is None:
+                                                    ht_cell = amount
+                                                elif tva_cell is None:
+                                                    tva_cell = amount
+                                            except:
+                                                pass
+                                
+                                # Vérifier que les valeurs sont définies (accepter 0 pour TVA)
                                 if percent_cell is not None and ht_cell is not None and tva_cell is not None:
                                     result['taux_tva'] = f"{percent_cell:.0f}%"
                                     result['ht'] = ht_cell
@@ -589,13 +665,24 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                     
                     # Recherche du total avec différents patterns
                     total_patterns = [
-                        r'Total à payer\s+€\s*(\d+[,.]?\d{0,2})',
-                        r'Totale da pagare\s+€\s*(\d+[,.]?\d{0,2})',
+                        # Patterns italiens
+                        r'Totale da pagare\s*€\s*(\d+[,.]?\d{0,2})',
+                        r'Totale da pagare\s+(\d+[,.]?\d{0,2})\s*€',
+                        r'Totale fattura\s+(\d+[,.]?\d{0,2})\s*€',
+                        # Patterns français
+                        r'Total à payer\s*€\s*(\d+[,.]?\d{0,2})',
                         r'Total à payer\s+(\d+[,.]?\d{0,2})\s*€',
                         r'Montant dû\s+(\d+[,.]?\d{0,2})\s*€',
-                        r'Totale fattura\s+€\s*(\d+[,.]?\d{0,2})',
-                        r'Totale fattura\s+(\d+[,.]?\d{0,2})\s*€',
-                        r'Total[:\s]+€\s*(\d+[,.]?\d{0,2})',
+                        r'Avoir total\s+(-?\d+[,.]?\d{0,2})\s*€',
+                        # Patterns espagnols
+                        r'Total pendiente\s*(-?\d+[,.]?\d{0,2})\s*€',
+                        r'Total pendiente\s*€\s*(-?\d+[,.]?\d{0,2})',
+                        r'Total\s*(-?\d+[,.]?\d{0,2})\s*€',
+                        # Patterns néerlandais
+                        r'Totaal te betalen\s*€\s*(\d+[,.]?\d{0,2})',
+                        r'Totaal te betalen\s+(\d+[,.]?\d{0,2})\s*€',
+                        r'Totaal factuur\s*€\s*(\d+[,.]?\d{0,2})',
+                        # Patterns génériques
                         r'Total[:\s]+(\d+[,.]?\d{0,2})\s*€'
                     ]
                     
@@ -610,39 +697,8 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                             except:
                                 continue
                 
-                # === EXTRACTION DIRECTE DES MONTANTS POUR FORMATS ATYPIQUES ===
-                if not result.get('ht') or not result.get('tva'):
-                    text = page.extract_text() or ""
-                    
-                    # Patterns pour formats comme "0% € 93,52 € 0,00"
-                    montant_patterns = [
-                        r'(\d+)%\s+€\s*(\d+[,.]?\d{0,2})\s+€\s*(\d+[,.]?\d{0,2})',  # "0% € 93,52 € 0,00"
-                        r'(\d+)%\s+(\d+[,.]?\d{0,2})\s*€\s+(\d+[,.]?\d{0,2})\s*€',  # "0% 93,52 € 0,00 €"
-                    ]
-                    
-                    for pattern in montant_patterns:
-                        montant_match = re.search(pattern, text)
-                        if montant_match:
-                            try:
-                                taux = float(montant_match.group(1))
-                                ht = float(montant_match.group(2).replace(',', '.'))
-                                tva = float(montant_match.group(3).replace(',', '.'))
-                                
-                                if not result.get('taux_tva'):
-                                    result['taux_tva'] = f"{taux:.0f}%"
-                                if not result.get('ht'):
-                                    result['ht'] = ht
-                                if not result.get('tva'):
-                                    result['tva'] = tva
-                                
-                                if debug_mode:
-                                    logger.info(f"      [SPATIAL-DIRECT] Taux: {taux}% | HT: {ht}€ | TVA: {tva}€")
-                                break
-                            except:
-                                continue
-                
-                # Arrêter si on a trouvé au moins HT et Total (TVA peut être 0)
-                if result.get('ht') is not None and result.get('total') is not None:
+                # Si on a trouvé des montants principaux, on peut arrêter
+                if result.get('ht') is not None and result.get('tva') is not None and result.get('total') is not None:
                     break
     
     except Exception as e:
@@ -762,7 +818,7 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
         # Créer le DataFrame
         df = pd.DataFrame(df_data)
         
-        # Sauvegarder en Excel avec formatage
+        # Sauvegarder en Excel avec formatage avancé
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, header=False, sheet_name='Factures Amazon')
             
@@ -785,24 +841,52 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
             # Figer la ligne de titre pour le scroll
             worksheet.freeze_panes = 'A3'  # Figer les 2 premières lignes (totaux + titres)
             
-            # Ajuster la largeur des colonnes pour une meilleure lisibilité
-            column_widths = {
-                'A': 20,  # ID AMAZON
-                'B': 18,  # Facture AMAZON  
-                'C': 12,  # Date Facture
-                'D': 8,   # Pays
-                'E': 25,  # Nom contact
-                'F': 12,  # HT
-                'G': 12,  # TVA
-                'H': 12,  # Taux TVA
-                'I': 12   # TOTAL
-            }
+            # Formatage des montants négatifs en rouge
+            red_font = Font(color='FF0000')  # Rouge #ff0000
             
-            for col_letter, width in column_widths.items():
-                worksheet.column_dimensions[col_letter].width = width
+            # Parcourir toutes les lignes de données (à partir de la ligne 3)
+            for row_idx in range(3, len(df_data) + 1):
+                # Colonnes des montants : F(HT), G(TVA), I(TOTAL) - colonnes 6, 7, 9
+                montant_columns = [6, 7, 9]  # F, G, I
+                has_negative = False
+                
+                # Vérifier s'il y a des montants négatifs dans cette ligne
+                for col_idx in montant_columns:
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    try:
+                        # Convertir la valeur en float pour vérifier si c'est négatif
+                        if cell.value and str(cell.value).replace(',', '.').replace('-', '').replace(' ', '').replace('€', '').strip():
+                            value = float(str(cell.value).replace(',', '.').replace(' ', '').replace('€', '').strip())
+                            if value < 0:
+                                has_negative = True
+                                break
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Si on a trouvé un montant négatif, colorer tous les montants de cette ligne en rouge
+                if has_negative:
+                    for col_idx in montant_columns:
+                        cell = worksheet.cell(row=row_idx, column=col_idx)
+                        cell.font = red_font
+            
+            # Ajuster automatiquement la largeur des colonnes selon le contenu
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                
+                # Ajuster la largeur avec une marge de sécurité
+                adjusted_width = min(max_length + 2, 50)  # Maximum 50 caractères
+                worksheet.column_dimensions[column_letter].width = adjusted_width
         
         logger.info(f"Fichier Excel créé avec succès: {output_path}")
-        logger.info(f"Formatage appliqué: titres verts, gras, ligne fixe")
+        logger.info(f"Formatage appliqué: titres verts, gras, ligne fixe, colonnes auto-ajustées, montants négatifs en rouge")
         logger.info(f"Nombre total de factures dans le fichier: {len(rows_data)}")
         
         return {
