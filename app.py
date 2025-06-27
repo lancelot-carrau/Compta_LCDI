@@ -2,29 +2,18 @@ from flask import Flask, render_template, request, send_file, jsonify
 import pandas as pd
 import os
 from datetime import datetime
-import tempfile
 from werkzeug.utils import secure_filename
 import io
-import chardet
 import re
 import logging
 import sys
 import webbrowser
 import threading
 import time
-import uuid
 from logging.handlers import RotatingFileHandler
 # Bibliothèques pour l'extraction PDF
 import PyPDF2
 import pdfplumber
-try:
-    import tabula
-except ImportError:
-    tabula = None
-try:
-    import camelot
-except ImportError:
-    camelot = None
 try:
     import openpyxl
 except ImportError:
@@ -618,13 +607,6 @@ def extract_data_from_filename(filename):
     except Exception as e:
         logger.warning(f"Erreur lors de l'extraction depuis le nom de fichier '{filename}': {e}")
         return {'pays': None, 'facture_amazon': None, 'date_facture': None, 'montant_total': None, 'taux_tva': None}
-
-def extract_country_from_filename(filename):
-    """
-    Fonction de compatibilité - utilise extract_data_from_filename
-    """
-    data = extract_data_from_filename(filename)
-    return data['pays']
 
 def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None):
     """
@@ -1564,220 +1546,6 @@ def download_file(filename):
         logger.error(f"Erreur lors du téléchargement: {str(e)}")
         return jsonify({'error': 'Erreur lors du téléchargement'}), 500
 
-@app.route('/process_files', methods=['POST'])
-def process_files():
-    """Traite les fichiers CSV Shopify (commandes, transactions, journal)"""
-    logger.info("=== DÉBUT DU TRAITEMENT CSV SHOPIFY ===")
-    uploaded_files = {}
-    try:
-        # Vérifier le mode de traitement
-        processing_mode = request.form.get('processing_mode', 'new')
-        
-        # Vérifier les fichiers requis
-        required_files = ['commandes_file', 'transactions_file', 'journal_file']
-        
-        for file_key in required_files:
-            if file_key not in request.files:
-                return jsonify({'error': f'Fichier manquant: {file_key}'}), 400
-            
-            file = request.files[file_key]
-            if file.filename == '' or file.filename is None:
-                return jsonify({'error': f'Aucun fichier sélectionné pour: {file_key}'}), 400
-            
-            if not allowed_file(file.filename):
-                return jsonify({'error': f'Type de fichier non autorisé: {file.filename}'}), 400
-            
-            # Sauvegarder le fichier temporairement
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(UPLOAD_FOLDER, f"{file_key}_{filename}")
-            file.save(file_path)
-            uploaded_files[file_key] = file_path
-            logger.info(f"Fichier sauvegardé: {file_key} -> {file_path}")
-        
-        # Traitement en mode "Nouveau fichier" ou "Combiner"
-        if processing_mode == 'combine':
-            # Vérifier s'il y a un fichier existant à combiner
-            if 'old_file' in request.files:
-                old_file = request.files['old_file']
-                if old_file.filename and allowed_file(old_file.filename):
-                    old_filename = secure_filename(old_file.filename)
-                    old_file_path = os.path.join(UPLOAD_FOLDER, f"existing_{old_filename}")
-                    old_file.save(old_file_path)
-                    logger.info(f"Fichier existant sauvegardé: {old_file_path}")
-                    # TODO: Implémenter la logique de combinaison
-                else:
-                    logger.warning("Fichier existant non valide, traitement en mode nouveau")
-                    processing_mode = 'new'
-        
-        # Générer le nom du fichier de sortie
-        timestamp = datetime.now().strftime('%d_%m_%Y_%H_%M_%S')
-        output_filename = f"Compta_LCDI_Shopify_{timestamp}.xlsx"
-        output_path = os.path.join(OUTPUT_FOLDER, output_filename)
-        
-        # TODO: Traiter les fichiers CSV avec la logique existante
-        # Pour l'instant, créer un fichier vide en attendant l'implémentation complète
-        import pandas as pd
-        df_placeholder = pd.DataFrame([
-            ['En cours de développement'],
-            ['Les fichiers ont été reçus:'],
-            [f"- Commandes: {uploaded_files.get('commandes_file', 'N/A')}"],
-            [f"- Transactions: {uploaded_files.get('transactions_file', 'N/A')}"],
-            [f"- Journal: {uploaded_files.get('journal_file', 'N/A')}"],
-            [f"- Mode: {processing_mode}"]
-        ])
-        df_placeholder.to_excel(output_path, index=False, header=False)
-          # Nettoyer les fichiers temporaires
-        for file_path in uploaded_files.values():
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        
-        logger.info(f"Fichier CSV Shopify créé: {output_filename}")
-        return jsonify({
-            'success': True,
-            'message': 'Traitement CSV Shopify terminé (version de développement)',
-            'filename': output_filename,
-            'download_url': f'/download/{output_filename}',
-            'note': 'Cette fonctionnalité est en cours de développement. Un fichier de test a été généré.'
-        })
-        
-    except Exception as e:
-        # Nettoyer les fichiers temporaires en cas d'erreur
-        try:
-            # Vérifier si uploaded_files a été créé avant l'erreur
-            if 'uploaded_files' in locals():
-                for file_path in uploaded_files.values():
-                    if file_path and os.path.exists(file_path):
-                        os.remove(file_path)
-        except Exception:
-            pass  # Ignore cleanup errors
-        
-        logger.error(f"Erreur lors du traitement CSV Shopify: {str(e)}")
-        return jsonify({'error': f'Erreur interne: {str(e)}'}), 500
-
-@app.route('/debug_pdf_extraction', methods=['POST'])
-def debug_pdf_extraction():
-    """Mode debug pour analyser l'extraction PDF en détail"""
-    logger.info("=== DÉBUT DU DEBUG PDF ===")
-    pdf_path = None  # Initialiser la variable
-    
-    try:
-        # Vérifier si un fichier PDF a été uploadé
-        logger.debug(f"Request files: {list(request.files.keys())}")
-        logger.debug(f"Request form: {dict(request.form)}")
-        
-        if 'debug_pdf_files' not in request.files:
-            return jsonify({'error': 'Aucun fichier PDF sélectionné pour le debug'}), 400
-        
-        pdf_file = request.files['debug_pdf_files']
-        if pdf_file.filename == '' or pdf_file.filename is None:
-            return jsonify({'error': 'Aucun fichier sélectionné'}), 400
-        
-        # Vérifier l'extension
-        if not pdf_file.filename.lower().endswith('.pdf'):
-            return jsonify({'error': 'Le fichier doit être un PDF'}), 400
-        
-        # Récupérer la méthode d'extraction
-        extraction_method = request.form.get('debug_extraction_method', 'auto')
-        
-        # Sauvegarder temporairement
-        filename = secure_filename(pdf_file.filename)
-        pdf_path = os.path.join(UPLOAD_FOLDER, f"debug_{filename}")
-        pdf_file.save(pdf_path)
-        
-        logger.info(f"Debug PDF: {filename} avec méthode {extraction_method}")
-        
-        # Extraire les données du PDF
-        pdf_results = process_pdf_extraction(pdf_path, extraction_method)
-        
-        # Résultats du debug
-        debug_results = {
-            'filename': filename,
-            'extraction_method': extraction_method,
-            'file_size': os.path.getsize(pdf_path),
-            'extraction_success': pdf_results['success'],
-            'text_extracted': bool(pdf_results.get('text')),
-            'text_length': len(pdf_results.get('text', '')),
-            'text_preview': pdf_results.get('text', '')[:500] if pdf_results.get('text') else '',
-            'tables_found': len(pdf_results.get('tables', [])),
-            'tables_preview': [],
-            'errors': pdf_results.get('errors', []),
-            'parsing_result': None,
-            'parsing_success': False,
-            'parsing_errors': []
-        }
-        
-        # Aperçu des tableaux
-        if pdf_results.get('tables'):
-            for i, table in enumerate(pdf_results['tables'][:3]):  # Limiter à 3 tableaux
-                try:
-                    if isinstance(table, list) and table:
-                        # Tableau au format liste de listes
-                        table_preview = {
-                            'table_index': i + 1,
-                            'rows': len(table),
-                            'columns': len(table[0]) if table[0] else 0,
-                            'preview': table[:3] if len(table) >= 3 else table  # 3 premières lignes
-                        }
-                        debug_results['tables_preview'].append(table_preview)
-                except Exception as e:
-                    debug_results['tables_preview'].append({
-                        'table_index': i + 1,
-                        'error': f"Erreur lors de l'analyse du tableau: {str(e)}"                    })
-        
-        # Tenter le parsing Amazon si on a du texte
-        if pdf_results.get('text'):
-            try:
-                text_to_parse = pdf_results['text']
-                
-                # Si pas de texte mais des tableaux, essayer d'extraire le texte des tableaux
-                if not text_to_parse and pdf_results['tables']:
-                    text_parts = []
-                    for table in pdf_results['tables']:
-                        try:
-                            if isinstance(table, list):
-                                text_parts.append(' '.join([str(cell) for row in table for cell in row if cell]))
-                        except Exception:
-                            continue
-                    text_to_parse = ' '.join(text_parts)
-                
-                if text_to_parse:
-                    parsing_result = parse_amazon_invoice_data(text_to_parse, debug_mode=True, filename=filename, pdf_path=pdf_path)
-                    if parsing_result:
-                        debug_results['parsing_result'] = parsing_result
-                        debug_results['parsing_success'] = True
-                        logger.info("Debug: Parsing Amazon réussi")
-                    else:
-                        debug_results['parsing_errors'].append("Impossible de parser les données Amazon")
-                        logger.warning("Debug: Parsing Amazon échoué")
-                else:
-                    debug_results['parsing_errors'].append("Aucun texte disponible pour le parsing")
-            except Exception as e:
-                debug_results['parsing_errors'].append(f"Erreur lors du parsing: {str(e)}")
-                logger.error(f"Erreur debug parsing: {str(e)}")
-        else:
-            debug_results['parsing_errors'].append("Aucun texte extrait du PDF")
-        
-        # Nettoyer le fichier temporaire
-        if os.path.exists(pdf_path):
-            os.remove(pdf_path)
-        
-        logger.info("=== FIN DU DEBUG PDF ===")
-        
-        return jsonify({
-            'success': True,
-            'debug_results': debug_results
-        })
-        
-    except Exception as e:
-        # Nettoyer le fichier temporaire en cas d'erreur
-        try:
-            if pdf_path and os.path.exists(pdf_path):
-                os.remove(pdf_path)
-        except:
-            pass  # Ignore les erreurs lors du nettoyage
-        
-        logger.error(f"Erreur lors du debug PDF: {str(e)}")
-        return jsonify({'error': f'Erreur interne: {str(e)}'}), 500
 
 def open_browser():
     """Ouvre le navigateur après un délai"""
