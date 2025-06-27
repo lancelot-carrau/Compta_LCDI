@@ -288,6 +288,158 @@ def parse_date_string(date_str):
         logger.warning(f"Erreur lors du parsing de date '{date_str}': {e}")
         return ''
 
+def extract_data_from_filename(filename):
+    """
+    Extrait toutes les données disponibles depuis le nom du fichier.
+    
+    Formats supportés:
+    - Standard ancien: "1774 TVA 21,00% BE 2025-01-03 FR500003HCVZJU 1103,97€.pdf"
+    - Format BE UOSS: "INV-FR-UOSS-20250114-BE-AMAZON_EU_0193797666666_20250114_233_408-932-5843251_VF.pdf"
+    - Format Standard Amazon: "INVOICE-ES-2024-12-20-ES-AMAZON_EU_ES12345678901_456-789-1234567.pdf"
+    
+    Args:
+        filename: Nom du fichier PDF
+        
+    Returns:
+        dict: Données extraites (country, invoice_number, date, amount, vat_rate)
+    """
+    try:
+        import re
+        
+        result = {
+            'pays': None,
+            'facture_amazon': None,
+            'date_facture': None,
+            'montant_total': None,
+            'taux_tva': None
+        }
+        
+        # PATTERN 1: Format BE UOSS - "INV-FR-UOSS-YYYYMMDD-BE-AMAZON_EU_..."
+        pattern_be_uoss = r'(INV-FR-UOSS-(\d{8})-BE)-AMAZON_EU_[A-Z0-9]+_\d+_\d+_[\d-]+_VF\.pdf'
+        match_be = re.search(pattern_be_uoss, filename, re.IGNORECASE)
+        if match_be:
+            facture_number = match_be.group(1)  # INV-FR-UOSS-20250114-BE
+            date_str = match_be.group(2)  # 20250114
+            
+            result['pays'] = 'BE'
+            result['facture_amazon'] = facture_number
+            
+            # Convertir la date YYYYMMDD en YYYY-MM-DD
+            if len(date_str) == 8:
+                try:
+                    year = date_str[:4]
+                    month = date_str[4:6]
+                    day = date_str[6:8]
+                    result['date_facture'] = f"{year}-{month}-{day}"
+                except:
+                    pass
+            
+            logger.info(f"Extraction BE UOSS réussie: pays=BE, facture={facture_number}, date={result['date_facture']}")
+            return result
+        
+        # PATTERN 2: Format Standard Amazon - "INVOICE-XX-YYYY-MM-DD-XX-AMAZON_EU_..."
+        pattern_standard = r'INVOICE-([A-Z]{2})-(\d{4})-(\d{2})-(\d{2})-\1-AMAZON_EU_([A-Z0-9]+)_[\d-]+\.pdf'
+        match_std = re.search(pattern_standard, filename, re.IGNORECASE)
+        if match_std:
+            pays = match_std.group(1).upper()
+            year = match_std.group(2)
+            month = match_std.group(3)
+            day = match_std.group(4)
+            invoice_id = match_std.group(5)
+            
+            # Vérifier que c'est un code pays valide
+            valid_countries = ['FR', 'IT', 'ES', 'NL', 'BE', 'DE', 'MT', 'LU', 'AT', 'PT']
+            if pays in valid_countries:
+                result['pays'] = pays
+                result['date_facture'] = f"{year}-{month}-{day}"
+                
+                # Construction du numéro de facture pour les pays non-BE
+                if pays != 'BE':
+                    result['facture_amazon'] = f"INVOICE-{pays}-{year}-{month}-{day}"
+                
+                logger.info(f"Extraction Amazon standard réussie: pays={pays}, date={result['date_facture']}")
+                return result
+        
+        # PATTERN 3: Format ancien avec TVA - "NUMERO_TVA_XX_PAYS_DATE_FACTURE_MONTANT.pdf" (après secure_filename)
+        pattern_ancien_secure = r'(\d+)_TVA_(\d+)_([A-Z]{2})_(\d{4}-\d{2}-\d{2})_((?:INV-FR-UOSS-[\d-]+(?:-[A-Z]{2})?|FR\w+))_(\d+)\.pdf'
+        match_ancien_secure = re.search(pattern_ancien_secure, filename, re.IGNORECASE)
+        if match_ancien_secure:
+            numero = match_ancien_secure.group(1)
+            taux_tva_num = match_ancien_secure.group(2)
+            pays = match_ancien_secure.group(3).upper()
+            date = match_ancien_secure.group(4)
+            facture = match_ancien_secure.group(5)
+            montant = match_ancien_secure.group(6)
+            
+            # Reconstituer le taux de TVA avec %
+            taux_tva = f"{int(taux_tva_num)/100:.0f}%"
+            
+            # Vérifier que c'est un code pays valide
+            valid_countries = ['FR', 'IT', 'ES', 'NL', 'BE', 'DE', 'MT', 'LU', 'AT', 'PT']
+            if pays in valid_countries:
+                result['pays'] = pays
+            
+            # PRIORITÉ DU NOM DE FICHIER : Toujours extraire la facture pour les BE
+            # (UOSS ou FRXXXXX), la priorité du nom de fichier s'applique
+            result['facture_amazon'] = facture
+            
+            result['date_facture'] = date
+            result['montant_total'] = montant
+            result['taux_tva'] = taux_tva
+            
+            logger.info(f"Extraction ancien format secure réussie: pays={pays}, facture={result['facture_amazon']}, date={date}")
+            return result
+        
+        # PATTERN 4: Format ancien avec TVA - "NUMERO TVA XX,XX% PAYS DATE FACTURE MONTANT€.pdf" (format original)
+        pattern_ancien = r'(\d+)\s+TVA\s+(\d+(?:,\d+)?%)\s+([A-Z]{2})\s+(\d{4}-\d{2}-\d{2})\s+((?:INV-FR-UOSS-[\d-]+(?:-[A-Z]{2})?|FR\w+))\s+([0-9,.-]+)€\.pdf'
+        match_ancien = re.search(pattern_ancien, filename, re.IGNORECASE)
+        if match_ancien:
+            numero = match_ancien.group(1)
+            taux_tva = match_ancien.group(2)
+            pays = match_ancien.group(3).upper()
+            date = match_ancien.group(4)
+            facture = match_ancien.group(5)
+            montant = match_ancien.group(6)
+            
+            # Vérifier que c'est un code pays valide
+            valid_countries = ['FR', 'IT', 'ES', 'NL', 'BE', 'DE', 'MT', 'LU', 'AT', 'PT']
+            if pays in valid_countries:
+                result['pays'] = pays
+            
+            # PRIORITÉ DU NOM DE FICHIER : Toujours extraire la facture pour les BE
+            # (UOSS ou FRXXXXX), la priorité du nom de fichier s'applique
+            result['facture_amazon'] = facture
+            
+            result['date_facture'] = date
+            result['montant_total'] = montant
+            result['taux_tva'] = taux_tva
+            
+            logger.info(f"Extraction ancien format réussie: pays={pays}, facture={result['facture_amazon']}, date={date}")
+            return result
+        
+        # Fallback: extraction individuelle du pays seulement
+        pattern_country = r'TVA\s+\d+(?:,\d+)?%\s+([A-Z]{2})\b'
+        match_country = re.search(pattern_country, filename, re.IGNORECASE)
+        if match_country:
+            country_code = match_country.group(1).upper()
+            valid_countries = ['FR', 'IT', 'ES', 'NL', 'BE', 'DE', 'MT', 'LU', 'AT', 'PT']
+            if country_code in valid_countries:
+                result['pays'] = country_code
+                logger.info(f"Extraction pays seul depuis nom fichier: {country_code}")
+        
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Erreur lors de l'extraction depuis le nom de fichier '{filename}': {e}")
+        return {'pays': None, 'facture_amazon': None, 'date_facture': None, 'montant_total': None, 'taux_tva': None}
+
+def extract_country_from_filename(filename):
+    """
+    Fonction de compatibilité - utilise extract_data_from_filename
+    """
+    data = extract_data_from_filename(filename)
+    return data['pays']
+
 def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None):
     """
     Parse les données d'une facture Amazon avec séparation stricte des méthodes :
@@ -310,7 +462,7 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
             'fattura', 'Fattura', 'FATTURA',
             'invoice', 'Invoice', 'INVOICE',
             'facture', 'Facture', 'FACTURE',
-            'FR500', 'FR199', 'INV-'
+            'FR500', 'FR199', 'INV-', 'ASIN'
         ]
         
         if not any(keyword in text for keyword in amazon_keywords):
@@ -328,6 +480,36 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
             'taux_tva': '',
             'total': 0.0
         }
+        
+        # === EXTRACTION DES DONNÉES DEPUIS LE NOM DE FICHIER (PRIORITAIRE) ===
+        filename_data = {}
+        if filename:
+            filename_data = extract_data_from_filename(filename)
+            
+            # Code pays (prioritaire)
+            if filename_data['pays']:
+                invoice_data['pays'] = filename_data['pays']
+                if debug_mode:
+                    logger.info(f"   [FILENAME] Code pays extrait: {filename_data['pays']}")
+            
+            # Numéro de facture Amazon (prioritaire)
+            if filename_data['facture_amazon']:
+                invoice_data['facture_amazon'] = filename_data['facture_amazon']
+                if debug_mode:
+                    logger.info(f"   [FILENAME] Facture Amazon extraite: {filename_data['facture_amazon']}")
+            
+            # Date (si disponible)
+            if filename_data['date_facture']:
+                # Convertir YYYY-MM-DD en DD/MM/YYYY
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(filename_data['date_facture'], '%Y-%m-%d')
+                    invoice_data['date_facture'] = date_obj.strftime('%d/%m/%Y')
+                    if debug_mode:
+                        logger.info(f"   [FILENAME] Date extraite: {invoice_data['date_facture']}")
+                except:
+                    pass
+        
         # === ANALYSE SPATIALE AVEC PDFPLUMBER - MONTANTS UNIQUEMENT ===
         if pdf_path and pdf_path.lower().endswith('.pdf'):
             try:
@@ -470,10 +652,17 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
         
         # === APPLICATION DES PATTERNS REGEX (CHAMPS NON-MONTANTS) ===
         for field, patterns in regex_patterns.items():
-            if not invoice_data[field]:  # Seulement si pas déjà rempli par l'analyse spatiale
+            current_value = invoice_data[field]
+            if debug_mode:
+                logger.info(f"   [REGEX] Traitement champ '{field}', valeur actuelle: '{current_value}'")
+            
+            if not current_value:  # Seulement si pas déjà rempli par l'analyse spatiale
                 for pattern in patterns:
                     match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
                     if match:
+                        if debug_mode:
+                            logger.info(f"   [REGEX] Match trouvé pour '{field}' avec pattern: {pattern}")
+                        
                         if field == 'date_facture' and len(match.groups()) >= 3:
                             # Traitement des dates avec mois en texte
                             day = match.group(1).zfill(2)
@@ -512,21 +701,23 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                             # Format numérique direct
                             invoice_data[field] = match.group(1)
                         elif field == 'pays':
-                            # Extraction du code pays (2 lettres) - prendre le dernier groupe non-vide
-                            code_pays = None
-                            for i in range(len(match.groups()), 0, -1):
-                                try:
-                                    group_val = match.group(i)
-                                    if group_val and len(group_val) == 2 and group_val.isupper():
-                                        code_pays = group_val
-                                        break
-                                except:
-                                    continue
-                            if code_pays:
-                                invoice_data[field] = code_pays
-                            else:
-                                # Fallback sur le premier groupe
-                                invoice_data[field] = match.group(1)
+                            # Si le pays est déjà défini depuis le nom de fichier, ne pas l'écraser
+                            if not invoice_data.get('pays'):
+                                # Extraction du code pays (2 lettres) - prendre le dernier groupe non-vide
+                                code_pays = None
+                                for i in range(len(match.groups()), 0, -1):
+                                    try:
+                                        group_val = match.group(i)
+                                        if group_val and len(group_val) == 2 and group_val.isupper():
+                                            code_pays = group_val
+                                            break
+                                    except:
+                                        continue
+                                if code_pays:
+                                    invoice_data[field] = code_pays
+                                else:
+                                    # Fallback sur le premier groupe
+                                    invoice_data[field] = match.group(1)
                         elif field == 'nom_contact':
                             # Nettoyage avancé du nom de contact avec priorité
                             nom = match.group(1).strip()
@@ -547,7 +738,9 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                                     invoice_data[field] = nom
                         else:
                             # Champs standard (id_amazon, facture_amazon)
-                            invoice_data[field] = match.group(1).strip()
+                            # Ne pas écraser les valeurs extraites du nom de fichier
+                            if not invoice_data[field]:
+                                invoice_data[field] = match.group(1).strip()
                         
                         if debug_mode:
                             logger.info(f"   [REGEX] {field}: {invoice_data[field]}")
@@ -585,6 +778,12 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
         if debug_mode:
             completeness = sum(1 for v in invoice_data.values() if v)
             logger.info(f"   [STATS] Complétude: {completeness}/8 champs remplis")
+        
+        # Nettoyage final : retirer les marqueurs SKIP pour les factures BE non-UOSS
+        if invoice_data['facture_amazon'] == 'SKIP_BE_NON_UOSS':
+            invoice_data['facture_amazon'] = ''
+            if debug_mode:
+                logger.info(f"   [CLEANUP] Marqueur SKIP supprimé pour facture BE non-UOSS")
         
         return invoice_data if has_minimum_data else None
         
@@ -1050,7 +1249,7 @@ def extract_pdf_batch():
                     
                     if text_to_parse:
                         try:
-                            invoice_data = parse_amazon_invoice_data(text_to_parse, debug_mode=False, filename=filename, pdf_path=pdf_path)
+                            invoice_data = parse_amazon_invoice_data(text_to_parse, debug_mode=True, filename=filename, pdf_path=pdf_path)
                             if invoice_data:
                                 invoices_data.append(invoice_data)
                                 processed_files.append(filename)
