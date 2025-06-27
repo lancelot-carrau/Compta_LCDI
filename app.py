@@ -626,8 +626,11 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                                 if len(row) == 4 and '%' in str(row[1]) and '€' in str(row[2]) and '€' in str(row[3]):
                                     try:
                                         percent_cell = float(str(row[1]).replace('%', '').replace(',', '.').strip())
-                                        ht_cell = float(str(row[2]).replace('€', '').replace(',', '.').strip())
-                                        tva_cell = float(str(row[3]).replace('€', '').replace(',', '.').strip())
+                                        # Gestion des montants négatifs avec -€ (avec ou sans espace)
+                                        ht_str = str(row[2]).replace('€', '').replace(',', '.').replace('-€', '-').replace('- €', '-').replace('- ', '-').strip()
+                                        tva_str = str(row[3]).replace('€', '').replace(',', '.').replace('-€', '-').replace('- €', '-').replace('- ', '-').strip()
+                                        ht_cell = float(ht_str)
+                                        tva_cell = float(tva_str)
                                     except:
                                         pass
                                 
@@ -642,7 +645,9 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                                                 pass
                                         elif '€' in cell_str:
                                             try:
-                                                amount = float(cell_str.replace('€', '').replace(',', '.').strip())
+                                                # Gestion des montants négatifs avec -€ (avec ou sans espace)
+                                                amount_str = cell_str.replace('€', '').replace(',', '.').replace('-€', '-').replace('- €', '-').replace('- ', '-').strip()
+                                                amount = float(amount_str)
                                                 if ht_cell is None:
                                                     ht_cell = amount
                                                 elif tva_cell is None:
@@ -663,34 +668,57 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                 if not result.get('total'):
                     text = page.extract_text() or ""
                     
-                    # Recherche du total avec différents patterns
+                    # Recherche du total avec différents patterns (AVEC SUPPORT DES MONTANTS NÉGATIFS)
                     total_patterns = [
-                        # Patterns italiens
+                        # Patterns italiens avec montants négatifs
+                        r'Totale da pagare\s*-€\s*(\d+[,.]?\d{0,2})',  # -€ 115,25
+                        r'Totale da pagare\s+(-\d+[,.]?\d{0,2})\s*€',  # -115,25 €
+                        r'Totale nota di credito\s*-€\s*(\d+[,.]?\d{0,2})',  # Note de crédit
+                        r'Totale da pagare\s*€\s*(-\d+[,.]?\d{0,2})',  # € -115,25
+                        # Patterns italiens classiques
                         r'Totale da pagare\s*€\s*(\d+[,.]?\d{0,2})',
                         r'Totale da pagare\s+(\d+[,.]?\d{0,2})\s*€',
                         r'Totale fattura\s+(\d+[,.]?\d{0,2})\s*€',
-                        # Patterns français
+                        # Patterns français avec montants négatifs
+                        r'Total à payer\s*-€\s*(\d+[,.]?\d{0,2})',
+                        r'Total à payer\s*€\s*(-\d+[,.]?\d{0,2})',
+                        r'Avoir total\s+(-\d+[,.]?\d{0,2})\s*€',
+                        # Patterns français classiques
                         r'Total à payer\s*€\s*(\d+[,.]?\d{0,2})',
                         r'Total à payer\s+(\d+[,.]?\d{0,2})\s*€',
                         r'Montant dû\s+(\d+[,.]?\d{0,2})\s*€',
-                        r'Avoir total\s+(-?\d+[,.]?\d{0,2})\s*€',
-                        # Patterns espagnols
-                        r'Total pendiente\s*(-?\d+[,.]?\d{0,2})\s*€',
-                        r'Total pendiente\s*€\s*(-?\d+[,.]?\d{0,2})',
+                        # Patterns espagnols avec montants négatifs
+                        r'Total pendiente\s*-€\s*(\d+[,.]?\d{0,2})',
+                        r'Total pendiente\s*(-\d+[,.]?\d{0,2})\s*€',
+                        r'Total pendiente\s*€\s*(-\d+[,.]?\d{0,2})',
+                        # Patterns espagnols classiques
                         r'Total\s*(-?\d+[,.]?\d{0,2})\s*€',
-                        # Patterns néerlandais
+                        # Patterns néerlandais avec montants négatifs
+                        r'Totaal te betalen\s*-€\s*(\d+[,.]?\d{0,2})',
+                        r'Totaal te betalen\s*€\s*(-\d+[,.]?\d{0,2})',
+                        # Patterns néerlandais classiques
                         r'Totaal te betalen\s*€\s*(\d+[,.]?\d{0,2})',
                         r'Totaal te betalen\s+(\d+[,.]?\d{0,2})\s*€',
                         r'Totaal factuur\s*€\s*(\d+[,.]?\d{0,2})',
                         # Patterns génériques
-                        r'Total[:\s]+(\d+[,.]?\d{0,2})\s*€'
+                        r'Total[:\s]+(-?\d+[,.]?\d{0,2})\s*€'
                     ]
                     
                     for pattern in total_patterns:
                         total_match = re.search(pattern, text, re.IGNORECASE)
                         if total_match:
                             try:
-                                result['total'] = float(total_match.group(1).replace(',', '.'))
+                                amount_str = total_match.group(1).replace(',', '.')
+                                
+                                # Traitement spécial pour les patterns avec -€ (montant négatif)
+                                if '-€' in pattern and not amount_str.startswith('-'):
+                                    # Si le pattern contient -€ mais le montant capturé n'a pas de signe,
+                                    # alors c'est un montant négatif
+                                    result['total'] = -float(amount_str)
+                                else:
+                                    # Montant normal (peut déjà être négatif avec le signe -)
+                                    result['total'] = float(amount_str)
+                                
                                 if debug_mode:
                                     logger.info(f"      [SPATIAL-TOTAL] {result['total']}€")
                                 break
@@ -791,12 +819,14 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
         total_tva = sum([row['tva'] for row in rows_data])
         total_ttc = sum([row['total'] for row in rows_data])
         
-        logger.info(f"Totaux calculés - HT: {total_ht:.2f}, TVA: {total_tva:.2f}, TTC: {total_ttc:.2f}")# Créer le DataFrame avec la structure attendue (sans colonne N°)
+        logger.info(f"Totaux calculés - HT: {total_ht:.2f}, TVA: {total_tva:.2f}, TTC: {total_ttc:.2f}")        # Créer le DataFrame avec la structure attendue (sans colonne N°)
         df_data = []
         
-        # Première ligne avec les totaux (exactement comme dans votre exemple CSV)
+        # Première ligne avec les totaux DYNAMIQUES (formules Excel)
         # Structure: 5 colonnes vides + HT + TVA + colonne vide + TOTAL = 9 colonnes
-        df_data.append(['', '', '', '', '', f"{total_ht:.2f}", f"{total_tva:.2f}", '', f"{total_ttc:.2f}"])
+        # Les formules calculeront automatiquement la somme de toutes les lignes de données
+        total_rows = len(rows_data) + 3  # +3 car ligne totaux (1) + ligne titres (2) + première ligne données (3)
+        df_data.append(['', '', '', '', '', f"=SUM(F3:F{total_rows})", f"=SUM(G3:G{total_rows})", '', f"=SUM(I3:I{total_rows})"])
         
         # Ligne d'en-têtes (9 colonnes exactement)
         df_data.append(['ID AMAZON', 'Facture AMAZON', 'Date Facture', 'Pays', 'Nom contact', 'HT', 'TVA', 'Taux TVA', 'TOTAL'])
@@ -809,10 +839,10 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
                 row['date_facture'],
                 row['pays'],
                 row['nom_contact'],
-                f"{row['ht']:.2f}",
-                f"{row['tva']:.2f}",
+                float(row['ht']),  # Conserver comme nombre pour les formules Excel
+                float(row['tva']),  # Conserver comme nombre pour les formules Excel
                 row['taux_tva'],
-                f"{row['total']:.2f}"
+                float(row['total'])  # Conserver comme nombre pour les formules Excel
             ])
         
         # Créer le DataFrame
@@ -826,11 +856,22 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
             worksheet = writer.sheets['Factures Amazon']
             
             # Formatage de la ligne de titre (ligne 2, index 1)
-            from openpyxl.styles import Font, PatternFill
+            from openpyxl.styles import Font, PatternFill, Border, Side
             
             # Couleur verte #92d050 et gras pour les titres
             green_fill = PatternFill(start_color='92D050', end_color='92D050', fill_type='solid')
             bold_font = Font(bold=True)
+            
+            # Formatage spécial pour la ligne des totaux (ligne 1)
+            # Couleur de fond légèrement différente et gras pour les totaux
+            total_fill = PatternFill(start_color='E6F3FF', end_color='E6F3FF', fill_type='solid')  # Bleu clair
+            total_font = Font(bold=True, color='000080')  # Bleu foncé et gras
+            
+            # Appliquer le formatage à la ligne des totaux (ligne 1)
+            for col in [6, 7, 9]:  # Colonnes F(HT), G(TVA), I(TOTAL)
+                cell = worksheet.cell(row=1, column=col)
+                cell.fill = total_fill
+                cell.font = total_font
             
             # Appliquer le formatage à la ligne de titre (ligne 2)
             for col in range(1, 10):  # Colonnes A à I (9 colonnes)
@@ -840,6 +881,18 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
             
             # Figer la ligne de titre pour le scroll
             worksheet.freeze_panes = 'A3'  # Figer les 2 premières lignes (totaux + titres)
+            
+            # Formatage numérique pour les colonnes de montants (2 décimales)
+            from openpyxl.styles import NamedStyle
+            currency_style = NamedStyle(name="currency_style", number_format='0.00')
+            
+            # Appliquer le formatage numérique aux colonnes de montants (F, G, I)
+            montant_columns = [6, 7, 9]  # F(HT), G(TVA), I(TOTAL)
+            for row_idx in range(1, len(df_data) + 1):  # Toutes les lignes (totaux + données)
+                for col_idx in montant_columns:
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    if cell.value is not None and not isinstance(cell.value, str):  # Ne pas formater les formules
+                        cell.number_format = '0.00'
             
             # Formatage des montants négatifs en rouge
             red_font = Font(color='FF0000')  # Rouge #ff0000
@@ -854,12 +907,10 @@ def create_structured_excel_from_invoices(invoices_data, output_path, existing_e
                 for col_idx in montant_columns:
                     cell = worksheet.cell(row=row_idx, column=col_idx)
                     try:
-                        # Convertir la valeur en float pour vérifier si c'est négatif
-                        if cell.value and str(cell.value).replace(',', '.').replace('-', '').replace(' ', '').replace('€', '').strip():
-                            value = float(str(cell.value).replace(',', '.').replace(' ', '').replace('€', '').strip())
-                            if value < 0:
-                                has_negative = True
-                                break
+                        # Maintenant que les valeurs sont des nombres, c'est plus simple
+                        if cell.value is not None and isinstance(cell.value, (int, float)) and cell.value < 0:
+                            has_negative = True
+                            break
                     except (ValueError, TypeError):
                         pass
                 
