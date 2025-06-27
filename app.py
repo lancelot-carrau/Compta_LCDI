@@ -190,107 +190,314 @@ def process_pdf_extraction(pdf_path, extraction_method='auto'):
     return result
 
 def parse_date_string(date_str):
-    """Parse une chaîne de date en format DD/MM/YYYY, avec support des mois en texte italien/français"""
-    if not date_str:
-        return ''
+    """Convertir différents formats de date vers DD/MM/YYYY"""
     
-    try:
-        # Dictionnaire de conversion des mois italiens
-        italian_months = {
-            'gennaio': '01', 'febbraio': '02', 'marzo': '03', 'aprile': '04',
-            'maggio': '05', 'giugno': '06', 'luglio': '07', 'agosto': '08',
-            'settembre': '09', 'ottobre': '10', 'novembre': '11', 'dicembre': '12'
-        }
+    if not date_str:
+        return None
+    
+    logger.info(f"   [DATE_PARSE] Format reçu: {date_str}")
+    
+    # Dictionnaire des mois italiens
+    italian_months = {
+        'gennaio': '01', 'febbraio': '02', 'marzo': '03', 'aprile': '04',
+        'maggio': '05', 'giugno': '06', 'luglio': '07', 'agosto': '08',
+        'settembre': '09', 'ottobre': '10', 'novembre': '11', 'dicembre': '12'
+    }
+    
+    # Dictionnaire des mois français
+    french_months = {
+        'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
+        'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
+        'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
+    }
+    
+    # Dictionnaire des mois espagnols
+    spanish_months = {
+        'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+        'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+        'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+    }
+    
+    # Dictionnaire des mois néerlandais
+    dutch_months = {
+        'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+        'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+        'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+    }
+    
+    # Dictionnaire des mois allemands
+    german_months = {
+        'januar': '01', 'februar': '02', 'märz': '03', 'april': '04',
+        'mai': '05', 'juni': '06', 'juli': '07', 'august': '08',
+        'september': '09', 'oktober': '10', 'november': '11', 'dezember': '12'
+    }
+    
+    # Dictionnaire des mois anglais
+    english_months = {
+        'january': '01', 'february': '02', 'march': '03', 'april': '04',
+        'may': '05', 'june': '06', 'july': '07', 'august': '08',
+        'september': '09', 'october': '10', 'november': '11', 'december': '12'
+    }
         
-        # Dictionnaire de conversion des mois français
-        french_months = {
-            'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
-            'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
-            'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
-        }
+    # Vérifier si c'est un tuple (jour, mois_texte, année) depuis les patterns regex
+    if isinstance(date_str, tuple) and len(date_str) == 3:
+        day, month_text, year = date_str
+        month_text = month_text.lower()
         
-        # Dictionnaire de conversion des mois espagnols
-        spanish_months = {
-            'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
-            'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
-            'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
-        }
+        # Chercher le mois dans les dictionnaires
+        month_num = (italian_months.get(month_text) or 
+                    french_months.get(month_text) or 
+                    spanish_months.get(month_text) or 
+                    dutch_months.get(month_text) or 
+                    german_months.get(month_text) or 
+                    english_months.get(month_text))
+        if month_num:
+            return f"{day.zfill(2)}/{month_num}/{year}"
+    
+    date_input = str(date_str).strip()
+    
+    # Traitement des dates avec mois en texte (format "DD mois YYYY")
+    text_date_pattern = r'(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})'
+    
+    match = re.search(text_date_pattern, date_input, re.IGNORECASE)
+    if match:
+        day, month_text, year = match.groups()
+        month_text = month_text.lower()
         
-        # Dictionnaire de conversion des mois néerlandais
-        dutch_months = {
-            'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
-            'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
-            'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
-        }
+        # Chercher le mois dans tous les dictionnaires
+        month_num = (italian_months.get(month_text) or 
+                    french_months.get(month_text) or 
+                    spanish_months.get(month_text) or 
+                    dutch_months.get(month_text) or 
+                    german_months.get(month_text) or 
+                    english_months.get(month_text))
+        if month_num:
+            return f"{day.zfill(2)}/{month_num}/{year}"
+    
+    # Essayer les formats numériques classiques
+    formats = ['%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%d.%m.%Y', '%m.%d.%Y']
+    
+    for fmt in formats:
+        try:
+            parsed_date = datetime.strptime(date_input, fmt)
+            return parsed_date.strftime('%d/%m/%Y')
+        except ValueError:
+            continue
+    
+    logger.info(f"   [DATE_PARSE] Échec parsing: {date_str}")
+    return None
+
+def extract_date_from_paid_box(text):
+    """Extraire la date de facture avec priorité à 'Data di fatturazione' puis fallback sur 'Payé/Remboursé'"""
+    
+    # Dictionnaire des mois en différentes langues
+    months_dict = {
+        # Français
+        'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
+        'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
+        'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12',
         
-        # Dictionnaire des mois allemands
-        german_months = {
-            'januar': '01', 'februar': '02', 'märz': '03', 'april': '04',
-            'mai': '05', 'juni': '06', 'juli': '07', 'august': '08',
-            'september': '09', 'oktober': '10', 'november': '11', 'dezember': '12'
-        }
+        # Anglais
+        'january': '01', 'february': '02', 'march': '03', 'april': '04',
+        'may': '05', 'june': '06', 'july': '07', 'august': '08',
+        'september': '09', 'october': '10', 'november': '11', 'december': '12',
         
-        # Dictionnaire des mois anglais
-        english_months = {
-            'january': '01', 'february': '02', 'march': '03', 'april': '04',
-            'may': '05', 'june': '06', 'july': '07', 'august': '08',
-            'september': '09', 'october': '10', 'november': '11', 'december': '12'
-        }
+        # Allemand
+        'januar': '01', 'februar': '02', 'märz': '03', 'april': '04',
+        'mai': '05', 'juni': '06', 'juli': '07', 'august': '08',
+        'september': '09', 'oktober': '10', 'november': '11', 'dezember': '12',
         
-        # Vérifier si c'est un tuple (jour, mois_texte, année) depuis les patterns regex
-        if isinstance(date_str, tuple) and len(date_str) == 3:
-            day, month_text, year = date_str
-            month_text = month_text.lower()
+        # Italien
+        'gennaio': '01', 'febbraio': '02', 'marzo': '03', 'aprile': '04',
+        'maggio': '05', 'giugno': '06', 'luglio': '07', 'agosto': '08',
+        'settembre': '09', 'ottobre': '10', 'novembre': '11', 'dicembre': '12',
+        
+        # Espagnol
+        'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+        'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+        'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12',
+        
+        # Néerlandais
+        'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+        'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+        'september': '09', 'oktober': '10', 'november': '11', 'december': '12',
+        
+        # Versions courtes communes
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'jun': '06',
+        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    }
+    
+    # PRIORITÉ 1: Recherche de "Data di fatturazione" / "Date de facture" / etc.
+    invoice_date_keywords = [
+        'Data di fatturazione', 'Date de la facture', 'Invoice date', 'Fecha de la factura',
+        'Factuurdatum', 'Rechnungsdatum', 'Data fattura', 'Date facture'
+    ]
+    
+    # PRIORITÉ 0 (ABSOLUE): Recherche des dates d'émission de notes de crédit / avoirs (POUR REMBOURSEMENTS)
+    credit_note_date_keywords = [
+        'Date d\'émission de l\'avoir', 'Creditnotadatum', 'Data emissione nota di credito',
+        'Fecha de emisión de la nota de crédito', 'Credit note date', 'Gutschrift Datum',
+        'Datum van de creditnota', 'Date de la note de crédit', 'Data nota di credito',
+        'émission de l\'avoir', 'émission.*?avoir'  # Patterns plus flexibles pour FR5000FSHCVZJC
+    ]
+    
+    # PRIORITÉ ABSOLUE : Dates d'émission de notes de crédit (remboursements)
+    for keyword in credit_note_date_keywords:
+        # Pattern plus flexible - peut aussi chercher directement les dates après le mot-clé  
+        if keyword == 'émission de l\'avoir' or keyword == 'émission.*?avoir':
+            # Pattern spécial pour extraire directement "Date d'émission de l'avoir 05 mai 2025"
+            # Utiliser . pour capturer n'importe quel type d'apostrophe
+            special_pattern = r"Date\s+d.émission\s+de\s+l.avoir\s+(\d{1,2}\s+[a-zA-ZÀ-ÿ]+\s+\d{4})"
+            special_matches = re.finditer(special_pattern, text, re.IGNORECASE)
+            for match in special_matches:
+                date_str = match.group(1)
+                logger.info(f"   [CREDIT_NOTE_DATE] Pattern spécial trouvé: {date_str}")
+                formatted_date = parse_date_string(date_str)
+                if formatted_date:
+                    logger.info(f"   [CREDIT_NOTE_DATE] Formaté: {formatted_date}")
+                    return formatted_date
+        
+        keyword_pattern = re.escape(keyword)
+        for keyword_match in re.finditer(keyword_pattern, text, re.IGNORECASE):
+            # Récupérer 200 caractères après le mot-clé
+            start = keyword_match.end()
+            end = min(len(text), start + 200)
+            context = text[start:end]
             
-            # Chercher le mois dans les dictionnaires
-            month_num = (italian_months.get(month_text) or 
-                        french_months.get(month_text) or 
-                        spanish_months.get(month_text) or 
-                        dutch_months.get(month_text) or 
-                        german_months.get(month_text) or 
-                        english_months.get(month_text))
-            if month_num:
-                return f"{day.zfill(2)}/{month_num}/{year}"
-        
-        date_input = str(date_str).strip()
-        
-        # Traitement des dates avec mois en texte (format "DD mois YYYY")
-        text_date_pattern = r'(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})'
-        
-        match = re.search(text_date_pattern, date_input, re.IGNORECASE)
-        if match:
-            day, month_text, year = match.groups()
-            month_text = month_text.lower()
+            # Recherche du pattern DD Month YYYY dans ce contexte
+            date_pattern = r'(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})'
+            date_matches = re.findall(date_pattern, context, re.IGNORECASE)
             
-            # Chercher le mois dans tous les dictionnaires
-            month_num = (italian_months.get(month_text) or 
-                        french_months.get(month_text) or 
-                        spanish_months.get(month_text) or 
-                        dutch_months.get(month_text) or 
-                        german_months.get(month_text) or 
-                        english_months.get(month_text))
-            if month_num:
-                return f"{day.zfill(2)}/{month_num}/{year}"
+            for day, month_name, year in date_matches:
+                month_lower = month_name.lower().strip()
+                
+                # Vérifier si le mois est dans notre dictionnaire
+                if month_lower in months_dict:
+                    logger.info(f"   [CREDIT_NOTE_DATE] Trouvé dans contexte '{keyword}': {day} {month_name} {year}")
+                    
+                    # Utiliser parse_date_string pour assurer un formatage uniforme DD/MM/YYYY
+                    date_tuple = (day, month_name, year)
+                    formatted_date = parse_date_string(date_tuple)
+                    
+                    if formatted_date:
+                        logger.info(f"   [CREDIT_NOTE_DATE] Formaté: {formatted_date}")
+                        return formatted_date
+            
+            # Recherche de dates numériques DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+            numeric_date_pattern = r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})'
+            numeric_matches = re.findall(numeric_date_pattern, context)
+            
+            for day, month, year in numeric_matches:
+                logger.info(f"   [CREDIT_NOTE_DATE] Date numérique trouvée dans contexte '{keyword}': {day}-{month}-{year}")
+                
+                # Utiliser parse_date_string pour assurer un formatage uniforme DD/MM/YYYY
+                numeric_date = f"{day}-{month}-{year}"
+                formatted_date = parse_date_string(numeric_date)
+                
+                if formatted_date:
+                    logger.info(f"   [CREDIT_NOTE_DATE] Formaté: {formatted_date}")
+                    return formatted_date
+    
+    # PRIORITÉ 1: Recherche de "Data di fatturazione" / "Date de facture" / etc. (POUR FACTURES NORMALES)
+    for keyword in invoice_date_keywords:
+        keyword_pattern = re.escape(keyword)
+        for keyword_match in re.finditer(keyword_pattern, text, re.IGNORECASE):
+            # Récupérer 200 caractères après le mot-clé
+            start = keyword_match.end()
+            end = min(len(text), start + 200)
+            context = text[start:end]
+            
+            # Recherche du pattern DD Month YYYY dans ce contexte
+            date_pattern = r'(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})'
+            date_matches = re.findall(date_pattern, context, re.IGNORECASE)
+            
+            for day, month_name, year in date_matches:
+                month_lower = month_name.lower().strip()
+                
+                # Vérifier si le mois est dans notre dictionnaire
+                if month_lower in months_dict:
+                    logger.info(f"   [INVOICE_DATE] Trouvé dans contexte '{keyword}': {day} {month_name} {year}")
+                    
+                    # Utiliser parse_date_string pour assurer un formatage uniforme DD/MM/YYYY
+                    date_tuple = (day, month_name, year)
+                    formatted_date = parse_date_string(date_tuple)
+                    
+                    if formatted_date:
+                        logger.info(f"   [INVOICE_DATE] Formaté: {formatted_date}")
+                        return formatted_date
+            
+            # Recherche de dates numériques DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+            numeric_date_pattern = r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})'
+            numeric_matches = re.findall(numeric_date_pattern, context)
+            
+            for day, month, year in numeric_matches:
+                logger.info(f"   [INVOICE_DATE] Date numérique trouvée dans contexte '{keyword}': {day}-{month}-{year}")
+                
+                # Utiliser parse_date_string pour assurer un formatage uniforme DD/MM/YYYY
+                numeric_date = f"{day}-{month}-{year}"
+                formatted_date = parse_date_string(numeric_date)
+                
+                if formatted_date:
+                    logger.info(f"   [INVOICE_DATE] Formaté: {formatted_date}")
+                    return formatted_date
+    
+    # PRIORITÉ 2: Fallback sur les termes "Payé" ou "Remboursé" (ancienne logique)
+    paid_keywords = [
+        'payé', 'paid', 'betaald', 'pagato', 'pagado', 'bezahlt',
+        'remboursé', 'refunded', 'terugbetaald', 'rimborsato', 'reembolsado', 'erstattet'
+    ]
+    
+    # Construire le pattern pour les mots-clés
+    keywords_pattern = '|'.join(paid_keywords)
+    
+    # Recherche du contexte autour des mots-clés avec date
+    for keyword_match in re.finditer(f'({keywords_pattern})', text, re.IGNORECASE):
+        # Récupérer 200 caractères autour du mot-clé
+        start = max(0, keyword_match.start() - 100)
+        end = min(len(text), keyword_match.end() + 100)
+        context = text[start:end]
         
-        # Essayer les formats numériques classiques
-        formats = ['%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%d.%m.%Y', '%m.%d.%Y']
+        # Recherche du pattern DD Month YYYY dans ce contexte
+        date_pattern = r'(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})'
+        date_matches = re.findall(date_pattern, context, re.IGNORECASE)
         
-        for fmt in formats:
-            try:
-                parsed_date = datetime.strptime(date_input, fmt)
-                return parsed_date.strftime('%d/%m/%Y')
-            except ValueError:                continue
+        for day, month_name, year in date_matches:
+            month_lower = month_name.lower().strip()
+            
+            # Vérifier si le mois est dans notre dictionnaire
+            if month_lower in months_dict:
+                logger.info(f"   [PAID_BOX_DATE] Trouvé dans contexte '{keyword_match.group()}': {day} {month_name} {year}")
+                
+                # Utiliser parse_date_string pour assurer un formatage uniforme DD/MM/YYYY
+                date_tuple = (day, month_name, year)
+                formatted_date = parse_date_string(date_tuple)
+                
+                if formatted_date:
+                    logger.info(f"   [PAID_BOX_DATE] Formaté: {formatted_date}")
+                    return formatted_date
         
-        # Si aucun format ne marche, retourner vide (pas la chaîne originale)
-        return ''
+        # Recherche de dates numériques DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+        numeric_date_pattern = r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})'
+        numeric_matches = re.findall(numeric_date_pattern, context)
         
-    except Exception as e:
-        logger.warning(f"Erreur lors du parsing de date '{date_str}': {e}")
-        return ''
+        for day, month, year in numeric_matches:
+            logger.info(f"   [PAID_BOX_DATE] Date numérique trouvée dans contexte '{keyword_match.group()}': {day}-{month}-{year}")
+            
+            # Utiliser parse_date_string pour assurer un formatage uniforme DD/MM/YYYY
+            numeric_date = f"{day}-{month}-{year}"
+            formatted_date = parse_date_string(numeric_date)
+            
+            if formatted_date:
+                logger.info(f"   [PAID_BOX_DATE] Formaté: {formatted_date}")
+                return formatted_date
+    
+    logger.info(f"   [DATE_EXTRACTION] Aucune date trouvée dans les sections de date de facture")
+    return None
 
 def extract_data_from_filename(filename):
     """
-    Extrait toutes les données disponibles depuis le nom du fichier.
+    Extrait les données disponibles depuis le nom du fichier (SANS la date).
+    La date sera récupérée depuis l'encadré "Payé"/"Remboursé" dans le PDF.
     
     Formats supportés:
     - Standard ancien: "1774 TVA 21,00% BE 2025-01-03 FR500003HCVZJU 1103,97€.pdf"
@@ -301,17 +508,16 @@ def extract_data_from_filename(filename):
         filename: Nom du fichier PDF
         
     Returns:
-        dict: Données extraites (country, invoice_number, date, amount, vat_rate)
+        dict: Données extraites (country, invoice_number, amount, vat_rate) - PAS de date
     """
     try:
         import re
         
         result = {
-            'pays': None,
-            'facture_amazon': None,
-            'date_facture': None,
-            'montant_total': None,
-            'taux_tva': None
+            'pays': "",
+            'facture_amazon': "",
+            'montant_total': "",
+            'taux_tva': ""
         }
         
         # PATTERN 1: Format BE UOSS - "INV-FR-UOSS-YYYYMMDD-BE-AMAZON_EU_..."
@@ -319,22 +525,11 @@ def extract_data_from_filename(filename):
         match_be = re.search(pattern_be_uoss, filename, re.IGNORECASE)
         if match_be:
             facture_number = match_be.group(1)  # INV-FR-UOSS-20250114-BE
-            date_str = match_be.group(2)  # 20250114
             
             result['pays'] = 'BE'
             result['facture_amazon'] = facture_number
             
-            # Convertir la date YYYYMMDD en YYYY-MM-DD
-            if len(date_str) == 8:
-                try:
-                    year = date_str[:4]
-                    month = date_str[4:6]
-                    day = date_str[6:8]
-                    result['date_facture'] = f"{year}-{month}-{day}"
-                except:
-                    pass
-            
-            logger.info(f"Extraction BE UOSS réussie: pays=BE, facture={facture_number}, date={result['date_facture']}")
+            logger.info(f"Extraction BE UOSS réussie: pays=BE, facture={facture_number}")
             return result
         
         # PATTERN 2: Format Standard Amazon - "INVOICE-XX-YYYY-MM-DD-XX-AMAZON_EU_..."
@@ -342,22 +537,21 @@ def extract_data_from_filename(filename):
         match_std = re.search(pattern_standard, filename, re.IGNORECASE)
         if match_std:
             pays = match_std.group(1).upper()
-            year = match_std.group(2)
-            month = match_std.group(3)
-            day = match_std.group(4)
             invoice_id = match_std.group(5)
             
             # Vérifier que c'est un code pays valide
             valid_countries = ['FR', 'IT', 'ES', 'NL', 'BE', 'DE', 'MT', 'LU', 'AT', 'PT']
             if pays in valid_countries:
                 result['pays'] = pays
-                result['date_facture'] = f"{year}-{month}-{day}"
                 
                 # Construction du numéro de facture pour les pays non-BE
                 if pays != 'BE':
+                    year = match_std.group(2)
+                    month = match_std.group(3)
+                    day = match_std.group(4)
                     result['facture_amazon'] = f"INVOICE-{pays}-{year}-{month}-{day}"
                 
-                logger.info(f"Extraction Amazon standard réussie: pays={pays}, date={result['date_facture']}")
+                logger.info(f"Extraction Amazon standard réussie: pays={pays}")
                 return result
         
         # PATTERN 3: Format ancien avec TVA - "NUMERO_TVA_XX_PAYS_DATE_FACTURE_MONTANT.pdf" (après secure_filename)
@@ -367,7 +561,6 @@ def extract_data_from_filename(filename):
             numero = match_ancien_secure.group(1)
             taux_tva_num = match_ancien_secure.group(2)
             pays = match_ancien_secure.group(3).upper()
-            date = match_ancien_secure.group(4)
             facture = match_ancien_secure.group(5)
             montant = match_ancien_secure.group(6)
             
@@ -379,15 +572,12 @@ def extract_data_from_filename(filename):
             if pays in valid_countries:
                 result['pays'] = pays
             
-            # PRIORITÉ DU NOM DE FICHIER : Toujours extraire la facture pour les BE
-            # (UOSS ou FRXXXXX), la priorité du nom de fichier s'applique
+            # Extraire la facture (UOSS ou FRXXXXX)
             result['facture_amazon'] = facture
-            
-            result['date_facture'] = date
             result['montant_total'] = montant
             result['taux_tva'] = taux_tva
             
-            logger.info(f"Extraction ancien format secure réussie: pays={pays}, facture={result['facture_amazon']}, date={date}")
+            logger.info(f"Extraction ancien format secure réussie: pays={pays}, facture={result['facture_amazon']}")
             return result
         
         # PATTERN 4: Format ancien avec TVA - "NUMERO TVA XX,XX% PAYS DATE FACTURE MONTANT€.pdf" (format original)
@@ -397,7 +587,6 @@ def extract_data_from_filename(filename):
             numero = match_ancien.group(1)
             taux_tva = match_ancien.group(2)
             pays = match_ancien.group(3).upper()
-            date = match_ancien.group(4)
             facture = match_ancien.group(5)
             montant = match_ancien.group(6)
             
@@ -406,15 +595,12 @@ def extract_data_from_filename(filename):
             if pays in valid_countries:
                 result['pays'] = pays
             
-            # PRIORITÉ DU NOM DE FICHIER : Toujours extraire la facture pour les BE
-            # (UOSS ou FRXXXXX), la priorité du nom de fichier s'applique
+            # Extraire la facture (UOSS ou FRXXXXX)
             result['facture_amazon'] = facture
-            
-            result['date_facture'] = date
             result['montant_total'] = montant
             result['taux_tva'] = taux_tva
             
-            logger.info(f"Extraction ancien format réussie: pays={pays}, facture={result['facture_amazon']}, date={date}")
+            logger.info(f"Extraction ancien format réussie: pays={pays}, facture={result['facture_amazon']}")
             return result
         
         # Fallback: extraction individuelle du pays seulement
@@ -491,24 +677,18 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                 invoice_data['pays'] = filename_data['pays']
                 if debug_mode:
                     logger.info(f"   [FILENAME] Code pays extrait: {filename_data['pays']}")
+            # Date : PRIORITÉ à l'encadré "Payé"/"Remboursé", puis regex comme fallback
+            paid_box_date = extract_date_from_paid_box(text)
+            if paid_box_date:
+                invoice_data['date_facture'] = paid_box_date
+                if debug_mode:
+                    logger.info(f"   [PAID_BOX] Date extraite depuis encadré: {paid_box_date}")
             
             # Numéro de facture Amazon (prioritaire)
             if filename_data['facture_amazon']:
                 invoice_data['facture_amazon'] = filename_data['facture_amazon']
                 if debug_mode:
                     logger.info(f"   [FILENAME] Facture Amazon extraite: {filename_data['facture_amazon']}")
-            
-            # Date (si disponible)
-            if filename_data['date_facture']:
-                # Convertir YYYY-MM-DD en DD/MM/YYYY
-                try:
-                    from datetime import datetime
-                    date_obj = datetime.strptime(filename_data['date_facture'], '%Y-%m-%d')
-                    invoice_data['date_facture'] = date_obj.strftime('%d/%m/%Y')
-                    if debug_mode:
-                        logger.info(f"   [FILENAME] Date extraite: {invoice_data['date_facture']}")
-                except:
-                    pass
         
         # === ANALYSE SPATIALE AVEC PDFPLUMBER - MONTANTS UNIQUEMENT ===
         if pdf_path and pdf_path.lower().endswith('.pdf'):
@@ -544,6 +724,15 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                 r'\b(\d{3}-\d{7}-\d{7})\b'
             ],
             'facture_amazon': [
+                # PRIORITÉ 0: Numéros de notes de crédit / avoirs (pour remboursements)
+                r'Numéro de l\'avoir[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Nummer creditnota[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Numero della nota di credito[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Número de la nota de crédito[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Credit note number[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Gutschrift Nummer[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                
+                # PRIORITÉ 1: Numéros de factures normales
                 r'Numéro de la facture[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
                 r'Invoice number[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
                 r'Numero della fattura[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
@@ -643,9 +832,9 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
                 r'Adresse de livraison\s*\n\s*([A-Z][a-z]+(?:\s+[a-z]+)*)\s*\n',  # Français
                 
                 # PRIORITÉ 8: Patterns de livraison (éviter Amazon Locker)
-                r'Livré à[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
-                r'Consegnato a[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
-                r'Ship to[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-Za-z\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})'
+                r'Livré à[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-ZaZ\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
+                r'Consegnato a[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-ZaZ\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})',
+                r'Ship to[:\s]+(?!.*(?:Amazon|Locker))([A-Z][A-ZaZ\s\-\'\.]{2,60}?)(?=\s*\n|\s*$|\s{3,})'
             ]
             # Note: 'total' pattern supprimé car géré par l'analyse spatiale
         }
@@ -656,110 +845,87 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
             if debug_mode:
                 logger.info(f"   [REGEX] Traitement champ '{field}', valeur actuelle: '{current_value}'")
             
-            if not current_value:  # Seulement si pas déjà rempli par l'analyse spatiale
-                for pattern in patterns:
-                    match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
-                    if match:
-                        if debug_mode:
-                            logger.info(f"   [REGEX] Match trouvé pour '{field}' avec pattern: {pattern}")
-                        
-                        if field == 'date_facture' and len(match.groups()) >= 3:
-                            # Traitement des dates avec mois en texte
-                            day = match.group(1).zfill(2)
-                            month_text = match.group(2).lower()
-                            year = match.group(3)
-                            
-                            # Mapping des mois (français, italien, anglais, espagnol, néerlandais)
-                            month_map = {
-                                # Italien
-                                'gennaio': '01', 'febbraio': '02', 'marzo': '03', 'aprile': '04',
-                                'maggio': '05', 'giugno': '06', 'luglio': '07', 'agosto': '08',
-                                'settembre': '09', 'ottobre': '10', 'novembre': '11', 'dicembre': '12',
-                                # Français
-                                'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
-                                'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
-                                'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12',
-                                # Anglais
-                                'january': '01', 'february': '02', 'march': '03', 'april': '04',
-                                'may': '05', 'june': '06', 'july': '07', 'august': '08',
-                                'september': '09', 'october': '10', 'november': '11', 'december': '12',
-                                # Espagnol
-                                'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
-                                'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
-                                'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12',
-                                # Néerlandais
-                                'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
-                                'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
-                                'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
-                            }
-                            
-                            if month_text in month_map:
-                                invoice_data[field] = f"{day}/{month_map[month_text]}/{year}"
-                            else:
-                                invoice_data[field] = f"{day}/{month_text}/{year}"
-                        elif field == 'date_facture' and len(match.groups()) == 1:
-                            # Format numérique direct
-                            invoice_data[field] = match.group(1)
-                        elif field == 'pays':
-                            # Si le pays est déjà défini depuis le nom de fichier, ne pas l'écraser
-                            if not invoice_data.get('pays'):
-                                # Extraction du code pays (2 lettres) - prendre le dernier groupe non-vide
-                                code_pays = None
-                                for i in range(len(match.groups()), 0, -1):
-                                    try:
-                                        group_val = match.group(i)
-                                        if group_val and len(group_val) == 2 and group_val.isupper():
-                                            code_pays = group_val
-                                            break
-                                    except:
-                                        continue
-                                if code_pays:
-                                    invoice_data[field] = code_pays
-                                else:
-                                    # Fallback sur le premier groupe
-                                    invoice_data[field] = match.group(1)
-                        elif field == 'nom_contact':
-                            # Nettoyage avancé du nom de contact avec priorité
-                            nom = match.group(1).strip()
-                            
-                            # Supprimer les caractères étranges en fin
-                            nom = re.sub(r'[^\w\s\-\'\.&]+$', '', nom).strip()
-                            
-                            # Supprimer les mots courts en fin (codes, etc.)
-                            nom = re.sub(r'\s+[A-Z]{1,3}$', '', nom).strip()
-                            
-                            # Vérifier que le nom fait au moins 3 caractères et commence par une majuscule
-                            if len(nom) >= 3 and nom[0].isupper():
-                                # Préférer les noms tout en majuscules (vrais clients)
-                                if nom.isupper() and len(nom.split()) >= 2:
-                                    # Convertir en format proper case pour les noms en majuscules
-                                    invoice_data[field] = ' '.join(word.capitalize() for word in nom.split())
-                                elif not invoice_data[field]:  # Seulement si pas déjà rempli
-                                    invoice_data[field] = nom
-                        else:
-                            # Champs standard (id_amazon, facture_amazon)
-                            # Ne pas écraser les valeurs extraites du nom de fichier
-                            if not invoice_data[field]:
-                                invoice_data[field] = match.group(1).strip()
-                        
-                        if debug_mode:
-                            logger.info(f"   [REGEX] {field}: {invoice_data[field]}")
-                        break
-        
-        # === VALIDATION ET COHÉRENCE DES MONTANTS ===
-        if invoice_data['ht'] and invoice_data['tva'] and invoice_data['total']:
-            calculated_total = invoice_data['ht'] + invoice_data['tva']
-            if abs(calculated_total - invoice_data['total']) > 0.02:  # Tolérance de 2 centimes
+            # PRIORITÉ ABSOLUE DU NOM DE FICHIER pour pays, facture_amazon et date_facture
+            if field in ['pays', 'facture_amazon', 'date_facture'] and filename_data.get(field):
                 if debug_mode:
-                    logger.info(f"   [CORRECTION] Auto-correction des montants: {calculated_total:.2f} vs {invoice_data['total']}")
-                # Prioriser le total et recalculer HT/TVA si on a le taux
-                if invoice_data['taux_tva'] and '%' in str(invoice_data['taux_tva']):
-                    try:
-                        taux = float(invoice_data['taux_tva'].replace('%', ''))
-                        invoice_data['ht'] = round(invoice_data['total'] / (1 + taux/100), 2)
-                        invoice_data['tva'] = round(invoice_data['total'] - invoice_data['ht'], 2)
-                    except:
-                        pass
+                    logger.info(f"   [REGEX] Champ '{field}' ignoré car extrait du nom de fichier avec priorité")
+                continue
+            
+            if not current_value:  # Seulement si pas déjà rempli par l'analyse spatiale
+                # LOGIQUE SPÉCIALE POUR facture_amazon EN CAS DE REMBOURSEMENT
+                if field == 'facture_amazon' and invoice_data['total'] < 0:
+                    # Pour les remboursements (montant négatif), chercher UNIQUEMENT les numéros d'avoir/notes de crédit
+                    credit_note_patterns = [
+                        r'Numéro de l\'avoir[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                        r'Nummer creditnota[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                        r'Numero della nota di credito[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                        r'Número de la nota de crédito[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                        r'Credit note number[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                        r'Gutschrift Nummer[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                        # Patterns génériques pour numéros d'avoir
+                        r'(?:avoir|credit|credito)[:\s#]*([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                    ]
+                    
+                    if debug_mode:
+                        logger.info(f"   [REMBOURSEMENT] Montant négatif détecté ({invoice_data['total']}), recherche de numéro d'avoir uniquement")
+                    
+                    for pattern in credit_note_patterns:
+                        match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                        if match:
+                            value = match.group(1) if match.groups() else match.group(0)
+                            invoice_data[field] = value
+                            if debug_mode:
+                                logger.info(f"   [REMBOURSEMENT] Numéro d'avoir trouvé: {value}")
+                            break
+                    
+                    # Si aucun numéro d'avoir trouvé avec les patterns spécialisés, 
+                    # continuer avec les patterns normaux mais privilégier les premiers
+                    if not invoice_data[field]:
+                        if debug_mode:
+                            logger.info(f"   [REMBOURSEMENT] Aucun numéro d'avoir spécialisé trouvé, recherche avec patterns généraux")
+                        for pattern in patterns:
+                            match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                            if match:
+                                value = match.group(1) if match.groups() else match.group(0)
+                                invoice_data[field] = value
+                                if debug_mode:
+                                    logger.info(f"   [REMBOURSEMENT] {field}: {value} (pattern général)")
+                                break
+                
+                else:
+                    # Logique normale pour les autres champs ou factures normales
+                    for pattern in patterns:
+                        match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                        if match:
+                            if debug_mode:
+                                logger.info(f"   [REGEX] Match trouvé pour '{field}' avec pattern: {pattern}")
+                            
+                            if field == 'date_facture':
+                                # Traitement UNIFORME de toutes les dates via parse_date_string
+                                if len(match.groups()) >= 3:
+                                    # Dates avec mois en texte (jour, mois, année)
+                                    day = match.group(1)
+                                    month_text = match.group(2)
+                                    year = match.group(3)
+                                    date_tuple = (day, month_text, year)
+                                    parsed_date = parse_date_string(date_tuple)
+                                else:
+                                    # Dates numériques (DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY)
+                                    date_string = match.group(1) if match.groups() else match.group(0)
+                                    parsed_date = parse_date_string(date_string)
+                                
+                                if parsed_date:
+                                    value = parsed_date
+                                else:
+                                    value = match.group(0)  # Fallback
+                            else:
+                                value = match.group(1) if match.groups() else match.group(0)
+                            
+                            # Mise à jour des données
+                            invoice_data[field] = value
+                            if debug_mode:
+                                logger.info(f"   [REGEX] {field}: {value}")
+                            break
         
         # Calcul automatique du taux de TVA si manquant
         if not invoice_data['taux_tva'] and invoice_data['ht'] > 0 and invoice_data['tva'] > 0:
@@ -767,6 +933,44 @@ def parse_amazon_invoice_data(text, debug_mode=False, filename='', pdf_path=None
             invoice_data['taux_tva'] = f"{taux:.0f}%"
             if debug_mode:
                 logger.info(f"   [CALCUL] Taux TVA calculé: {invoice_data['taux_tva']}")
+        
+        # === CORRECTION POST-EXTRACTION POUR REMBOURSEMENTS ===
+        # Si le montant est négatif, chercher obligatoirement un numéro d'avoir dans le PDF
+        # même si un numéro de facture a été extrait du nom de fichier
+        if invoice_data['total'] < 0:
+            if debug_mode:
+                logger.info(f"   [CORRECTION_REMBOURSEMENT] Montant négatif détecté ({invoice_data['total']}), recherche forcée de numéro d'avoir")
+            
+            # Patterns spécialisés pour numéros d'avoir/notes de crédit
+            credit_note_patterns = [
+                r'Numéro de l\'avoir[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Nummer creditnota[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',  
+                r'Numero della nota di credito[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Número de la nota de crédito[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Credit note number[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'Gutschrift Nummer[:\s]+([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                # Patterns génériques plus larges
+                r'(?:avoir|credit|credito|nota)[:\s#]*([A-Z]{2}\d{3,8}[A-Z0-9]{2,8})',
+                r'\b([A-Z]{2}5000[A-Z0-9]{2,8})\b',  # Pattern FR5000... typique des avoirs Amazon
+            ]
+            
+            credit_note_found = None
+            for pattern in credit_note_patterns:
+                match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    credit_note_found = match.group(1) if match.groups() else match.group(0)
+                    if debug_mode:
+                        logger.info(f"   [CORRECTION_REMBOURSEMENT] Numéro d'avoir trouvé avec pattern '{pattern}': {credit_note_found}")
+                    break
+            
+            # Si un numéro d'avoir a été trouvé, remplacer le numéro de facture
+            if credit_note_found:
+                old_facture = invoice_data['facture_amazon']
+                invoice_data['facture_amazon'] = credit_note_found
+                if debug_mode:
+                    logger.info(f"   [CORRECTION_REMBOURSEMENT] Remplacement: '{old_facture}' → '{credit_note_found}'")
+            elif debug_mode:
+                logger.info(f"   [CORRECTION_REMBOURSEMENT] Aucun numéro d'avoir trouvé, conservation du numéro actuel: '{invoice_data['facture_amazon']}'")
         
         # Vérification des données minimales
         has_minimum_data = any([
@@ -825,9 +1029,16 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                                 if len(row) == 4 and '%' in str(row[1]) and '€' in str(row[2]) and '€' in str(row[3]):
                                     try:
                                         percent_cell = float(str(row[1]).replace('%', '').replace(',', '.').strip())
-                                        # Gestion des montants négatifs avec -€ (avec ou sans espace)
+                                        # Gestion des montants négatifs : -€, - €, € XXX-
                                         ht_str = str(row[2]).replace('€', '').replace(',', '.').replace('-€', '-').replace('- €', '-').replace('- ', '-').strip()
                                         tva_str = str(row[3]).replace('€', '').replace(',', '.').replace('-€', '-').replace('- €', '-').replace('- ', '-').strip()
+                                        
+                                        # Support du format € XXX,XX- (- à la fin)
+                                        if ht_str.endswith('-'):
+                                            ht_str = '-' + ht_str[:-1]
+                                        if tva_str.endswith('-'):
+                                            tva_str = '-' + tva_str[:-1]
+                                            
                                         ht_cell = float(ht_str)
                                         tva_cell = float(tva_str)
                                     except:
@@ -844,8 +1055,13 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                                                 pass
                                         elif '€' in cell_str:
                                             try:
-                                                # Gestion des montants négatifs avec -€ (avec ou sans espace)
+                                                # Gestion des montants négatifs : -€, - €, € XXX-
                                                 amount_str = cell_str.replace('€', '').replace(',', '.').replace('-€', '-').replace('- €', '-').replace('- ', '-').strip()
+                                                
+                                                # Support du format € XXX,XX- (- à la fin)
+                                                if amount_str.endswith('-'):
+                                                    amount_str = '-' + amount_str[:-1]
+                                                
                                                 amount = float(amount_str)
                                                 if ht_cell is None:
                                                     ht_cell = amount
@@ -892,9 +1108,11 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                         r'Total pendiente\s*€\s*(-\d+[,.]?\d{0,2})',
                         # Patterns espagnols classiques
                         r'Total\s*(-?\d+[,.]?\d{0,2})\s*€',
-                        # Patterns néerlandais avec montants négatifs
-                        r'Totaal te betalen\s*-€\s*(\d+[,.]?\d{0,2})',
-                        r'Totaal te betalen\s*€\s*(-\d+[,.]?\d{0,2})',
+                        # Patterns néerlandais avec montants négatifs (FORMAT € XXX,XX-)
+                        r'Totaal te betalen\s*€\s*(\d+[,.]?\d{0,2})\s*-',  # € 115,78-
+                        r'Totaal te betalen\s*-€\s*(\d+[,.]?\d{0,2})',  # -€ 115,78
+                        r'Totaal te betalen\s*€\s*(-\d+[,.]?\d{0,2})',  # € -115,78
+                        r'Totaal factuur\s*€\s*(\d+[,.]?\d{0,2})\s*-',  # € 115,78-
                         # Patterns néerlandais classiques
                         r'Totaal te betalen\s*€\s*(\d+[,.]?\d{0,2})',
                         r'Totaal te betalen\s+(\d+[,.]?\d{0,2})\s*€',
@@ -909,9 +1127,13 @@ def _extract_with_spatial_analysis(pdf_path, debug_mode=False):
                             try:
                                 amount_str = total_match.group(1).replace(',', '.')
                                 
-                                # Traitement spécial pour les patterns avec -€ (montant négatif)
+                                # Traitement spécial pour les patterns avec montants négatifs
                                 if '-€' in pattern and not amount_str.startswith('-'):
                                     # Si le pattern contient -€ mais le montant capturé n'a pas de signe,
+                                    # alors c'est un montant négatif
+                                    result['total'] = -float(amount_str)
+                                elif r'\s*-' in pattern and not amount_str.startswith('-'):
+                                    # Si le pattern contient "€ XXX,XX-" (avec - à la fin)
                                     # alors c'est un montant négatif
                                     result['total'] = -float(amount_str)
                                 else:
